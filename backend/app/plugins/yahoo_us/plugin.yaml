@@ -1,0 +1,20 @@
+# Yahoo Finance 公开接口 — 美股日K与拆股/分红 (无需 Key)
+# 纯 HTTP 源, 无额外依赖 (runtime: none)。
+
+name: yahoo_us
+display_name: "Yahoo Finance（美股）"
+runtime: none
+entry: app.plugins.yahoo_us.provider:YahooUSProvider
+check: app.plugins.yahoo_us.provider:availability
+datasets: [daily, adj_factor]
+description: |
+  美股日K（原始价）与拆股、分红推导的除权因子，免费、无需 Key。
+
+  - 标的维表：标普 500 + 纳指 100（随插件打包），可在数据目录的 `user_data/yahoo_us_symbols.txt` 追加代码，每行一个
+  - 代码格式：`AAPL`、类别股用连字符如 `BRK-B`
+  - 成交额不提供（显示为 —），成交量单位为手（100 股）
+  - 非官方接口，偶有限流或结构变化；未接入实时行情、分钟线与财务数据
+usage_notes:
+  - "日K与除权事件：每只标的 1 次请求，约 4 次/秒；标普 500 + 纳指 100 首次全量约 5 分钟"
+homepage: "https://finance.yahoo.com"
+homepage_label: "Yahoo Finance"
