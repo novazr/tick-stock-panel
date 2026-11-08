@@ -45,6 +45,7 @@ import { strategyResultCandidate } from './researchCandidates'
 import { BacktestEvidencePanel } from './components/BacktestEvidencePanel'
 import { buildDailyNavItems, buildTradeKeyMap, buildTradesNavItems, type TradeNavItem } from './tradeNav'
 import { currentMarket } from '@/lib/market-palette'
+import { useSettings } from '@/lib/useSharedQueries'
 
 const formatDate = (date: Date) => date.toISOString().slice(0, 10)
 const monthsAgo = (months: number) => {
@@ -597,13 +598,13 @@ const METRIC_HELP = {
     note: '短周期回测的年化结果可能被明显放大。',
   },
   benchmarkReturn: {
-    title: '同期上证',
-    description: '同一回测区间内上证指数的累计收益率。',
+    title: '同期基准',
+    description: '同一回测区间内基准（A 股为上证指数，美股为纳指100 ETF QQQ）的累计收益率。',
     note: '用于判断策略表现是否主要来自市场整体涨跌。',
   },
   excessReturn: {
     title: '超额收益',
-    description: '策略总收益率减去同期上证指数收益率。',
+    description: '策略总收益率减去同期基准收益率。',
     note: '正值表示跑赢基准，负值表示跑输基准。',
   },
   sharpe: {
@@ -992,6 +993,11 @@ export function StrategyBacktest({ loadCandidate, onLoadConsumed }: {
   )
   const [fees, setFees] = useState(saved?.fees ?? '2')
   const [stampTax, setStampTax] = useState(saved?.stampTax ?? (currentMarket() === 'us' ? '0' : '1'))  // 美股无印花税
+  // 首次打开时市场信息可能尚未就绪: 拿到 settings 后, 未保存过印花税的美股实例补成 0
+  const marketForFees = useSettings().data?.market
+  useEffect(() => {
+    if (marketForFees === 'us' && saved?.stampTax == null) setStampTax('0')
+  }, [marketForFees]) // eslint-disable-line react-hooks/exhaustive-deps
   const [slippage, setSlippage] = useState(saved?.slippage ?? '5')
   const [maxPositions, setMaxPositions] = useState(saved?.maxPositions ?? '10')
   const [maxExposure, setMaxExposure] = useState(saved?.maxExposure ?? '100')
@@ -2523,7 +2529,7 @@ export function StrategyBacktest({ loadCandidate, onLoadConsumed }: {
                   color={statValueColor(strategyReturn)} />
                 <Stat label={<MetricLabel label="年化" metric="annualReturn" />} value={pick('annual_return') != null ? fmtPct(pick('annual_return') as number) : '—'}
                   color={statValueColor(pick('annual_return') as number)} />
-                <Stat label={<MetricLabel label="同期上证" metric="benchmarkReturn" />} value={benchmarkReturn != null ? fmtPct(benchmarkReturn) : '—'}
+                <Stat label={<MetricLabel label={`同期${(result.benchmark_curve?.[0]?.name ?? '上证').replace(/指数$/, '')}`} metric="benchmarkReturn" />} value={benchmarkReturn != null ? fmtPct(benchmarkReturn) : '—'}
                   color={statValueColor(benchmarkReturn)} />
                 <Stat label={<MetricLabel label="超额收益" metric="excessReturn" />} value={excessReturn != null ? fmtPct(excessReturn) : '—'}
                   color={statValueColor(excessReturn)} />

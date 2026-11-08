@@ -69,6 +69,17 @@ from app.strategy.scoring import (
 logger = logging.getLogger(__name__)
 
 BENCHMARK_SYMBOL = "000001.SH"
+US_BENCHMARK_SYMBOL = "QQQ"
+
+
+def benchmark_for_market(market: str | None = None) -> tuple[str, str]:
+    """回测基准 (代码, 名称): A 股上证指数, 美股纳指100 ETF (QQQ)。未指定时跟随实例市场。"""
+    if market is None:
+        from app.market import active_market
+        market = active_market()
+    if market == "us":
+        return US_BENCHMARK_SYMBOL, "纳指100 (QQQ)"
+    return BENCHMARK_SYMBOL, "上证指数"
 _EXECUTION_COLUMNS = frozenset({
     "symbol", "date", "open", "high", "low", "close", "volume",
     "name", "score", "signal_limit_up", "signal_limit_down",
@@ -2889,10 +2900,11 @@ class StrategyBacktestService:
         return combined
 
     def _build_benchmark_curve(self, start: date, end: date) -> list[dict]:
+        bench_symbol, bench_name = benchmark_for_market()
         try:
-            df = self.engine.repo.get_index_daily(BENCHMARK_SYMBOL, start, end, columns=["date", "close"])
+            df = self.engine.repo.get_index_daily(bench_symbol, start, end, columns=["date", "close"])
         except Exception as e:
-            logger.warning("load benchmark %s failed: %s", BENCHMARK_SYMBOL, e)
+            logger.warning("load benchmark %s failed: %s", bench_symbol, e)
             return []
 
         evidence = getattr(self.engine, "_evidence", None)
@@ -2911,8 +2923,8 @@ class StrategyBacktestService:
                 "date": str(row["date"])[:10],
                 "value": round(float(row["close"]), 4),
                 "close": round(float(row["close"]), 4),
-                "name": "上证指数",
-                "symbol": BENCHMARK_SYMBOL,
+                "name": bench_name,
+                "symbol": bench_symbol,
             }
             for row in df.iter_rows(named=True)
             if row["close"] is not None

@@ -58,3 +58,10 @@ def test_trade_dict_includes_adds():
                     entry_price=10.0, exit_price=11.0, pnl_pct=0.1, duration=4,
                     exit_reason="end", adds=2)
     assert StrategyBacktestService._trade_to_dict(t)["adds"] == 2
+
+
+def test_benchmark_follows_market():
+    from app.backtest.strategy import benchmark_for_market
+
+    assert benchmark_for_market("cn") == ("000001.SH", "上证指数")
+    assert benchmark_for_market("us") == ("QQQ", "纳指100 (QQQ)")

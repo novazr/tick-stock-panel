@@ -21,6 +21,8 @@ export function StrategyNavChart({ result }: Props) {
       else next.add(name)
       return next
     })
+  // 基准名随后端返回 (A 股上证指数 / 美股 QQQ); 兼作图例 key
+  const benchName = `同期${result.benchmark_curve?.[0]?.name ?? '上证指数'}`
   const option = useMemo(() => {
     if (!result.equity_curve.length) return null
 
@@ -169,7 +171,7 @@ export function StrategyNavChart({ result }: Props) {
           for (const p of params) {
             if (p.value == null) continue
             const isDrawdown = p.seriesName === '回撤'
-            const isBenchmark = p.seriesName === '同期上证指数'
+            const isBenchmark = p.seriesName === benchName
             const isPosition = p.seriesName === '仓位'
             html += `<div style="display:flex;justify-content:space-between;gap:16px">
               <span style="color:${p.color}">${p.seriesName}</span>
@@ -205,8 +207,8 @@ export function StrategyNavChart({ result }: Props) {
             } as any,
           },
         },
-        ...(hasBenchmark && !hidden.has('同期上证指数') ? [{
-          name: '同期上证指数',
+        ...(hasBenchmark && !hidden.has(benchName) ? [{
+          name: benchName,
           type: 'line',
           xAxisIndex: 0,
           yAxisIndex: 0,
@@ -242,7 +244,7 @@ export function StrategyNavChart({ result }: Props) {
         }] : []),
       ],
     } as any
-  }, [result.equity_curve, result.drawdown_curve, result.benchmark_curve, result.run_id, ct, hidden])
+  }, [result.equity_curve, result.drawdown_curve, result.benchmark_curve, result.run_id, ct, hidden, benchName])
 
   const chartRef = useECharts(option, [result.run_id, ct], containerRef)
 
@@ -273,14 +275,14 @@ export function StrategyNavChart({ result }: Props) {
         {(result.benchmark_curve?.length ?? 0) > 0 && (
           <button
             type="button"
-            onClick={() => toggleLegend('同期上证指数')}
+            onClick={() => toggleLegend(benchName)}
             title="点击显示/隐藏"
             className={`flex items-center gap-1.5 text-[10px] text-secondary cursor-pointer transition-opacity ${
-              hidden.has('同期上证指数') ? 'opacity-40' : 'opacity-100'
+              hidden.has(benchName) ? 'opacity-40' : 'opacity-100'
             }`}
           >
             <span className="w-3 h-0.5 rounded border-t border-dashed border-[#64748b]" />
-            同期上证指数
+            {benchName}
           </button>
         )}
         <span className="ml-auto text-[10px] text-muted">滚轮缩放 · 拖动平移</span>

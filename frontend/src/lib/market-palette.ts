@@ -80,7 +80,7 @@ export function restoreMarket(): void {
 export const CN_ONLY_WIDGETS: ReadonlySet<string> = new Set(['ladder', 'concept-rank', 'industry-rank'])
 
 /** 仅适用于 A 股的侧栏页面;美股实例渲染时隐藏,不改动用户保存的 nav_hidden。 */
-export const CN_ONLY_NAV_PATHS: ReadonlySet<string> = new Set(['/limit-ladder', '/concept-analysis', '/industry-analysis'])
+export const CN_ONLY_NAV_PATHS: ReadonlySet<string> = new Set(['/limit-ladder', '/concept-analysis', '/industry-analysis', '/financials'])
 
 export function isAvailableInMarket(kind: 'widget' | 'nav', id: string, market: MarketCode | null | undefined): boolean {
   if (market !== 'us') return true
