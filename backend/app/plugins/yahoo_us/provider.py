@@ -160,6 +160,12 @@ def drop_unsettled_today(rows: list[dict], now_ny: datetime) -> list[dict]:
     return [row for row in rows if row["date"] != today]
 
 
+def _benchmarks() -> dict[str, str]:
+    from app.services.index_const import core_index_names
+
+    return core_index_names("us")
+
+
 def load_universe(data_dir: Path | None) -> list[dict]:
     """打包的标普 500 + 纳指 100, 再追加用户代码文件中的代码 (去重, 校验格式)。"""
     items: dict[str, dict] = {}
@@ -194,6 +200,8 @@ def _window(start_time: datetime | None, end_time: datetime | None) -> tuple[dat
 class YahooUSProvider:
     name = "yahoo_us"
     builtin = True
+    # 所服务的市场: 日K源选中本插件时, 实例按美股展示 (见 app.market.active_market)
+    market = "us"
 
     def __init__(self, client: YahooClient | None = None, data_dir: Path | None = None,
                  clock: Callable[[], datetime] | None = None) -> None:
@@ -224,6 +232,13 @@ class YahooUSProvider:
     # ---- 标的维表
 
     def get_instruments(self, asset_type: str = "stock") -> list[dict]:
+        """stock: 标普 500 + 纳指 100 + 用户追加; index: 美股核心基准 ETF (单一权威 index_const)。"""
+        if asset_type == "index":
+            return [
+                {"symbol": symbol, "name": name, "code": symbol, "exchange": "US",
+                 "region": "US", "type": "index", "ext": {}}
+                for symbol, name in _benchmarks().items()
+            ]
         if asset_type != "stock":
             return []
         return [
@@ -261,8 +276,17 @@ class YahooUSProvider:
         asset_type: str = "stock",
         on_chunk_done: Callable[[int, int], None] | None = None,
     ) -> Iterator[pl.DataFrame]:
-        """每批最多 20 只产出一帧; 某批全部请求失败时抛 ProviderRequestError, 不发布残缺结果。"""
-        if not symbols or asset_type != "stock":
+        """每批最多 20 只产出一帧; 某批全部请求失败时抛 ProviderRequestError, 不发布残缺结果。
+
+        asset_type="index" 只服务核心基准 ETF (价格为成交价, 指数路径不做复权);
+        其他指数代码与 ETF 资产类型空手而归, 由上层回退。
+        """
+        if asset_type == "index":
+            benchmarks = _benchmarks()
+            symbols = [s for s in symbols if s in benchmarks]
+        elif asset_type != "stock":
+            return
+        if not symbols:
             return
         symbols = list(dict.fromkeys(symbols))
         start_d, end_d = _window(start_time, end_time)

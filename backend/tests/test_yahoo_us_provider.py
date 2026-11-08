@@ -292,3 +292,24 @@ def test_manifest_registers_through_loader():
     assert "yahoo_us" in loader._PLUGIN_STATUS
     assert loader.provider_has_dataset("yahoo_us", "daily")
     assert not loader.provider_has_dataset("yahoo_us", "realtime")
+
+
+# ---------------------------------------------------------------- 美股基准指数 (核心 ETF)
+
+
+def test_provider_declares_us_market_and_benchmark_index_instruments():
+    from app.services.index_const import core_index_names
+
+    provider = _provider(_FakeClient({}))
+    assert provider.market == "us"
+    items = provider.get_instruments("index")
+    assert [i["symbol"] for i in items] == list(core_index_names("us"))
+    assert all(i["type"] == "index" for i in items)
+
+
+def test_index_daily_serves_only_benchmarks():
+    client = _FakeClient({"SPY": _simple_chart("SPY")})
+    df = _provider(client).get_daily(["SPY", "000001.SH", "AAPL"], datetime(2026, 11, 1), datetime(2026, 11, 7),
+                                     asset_type="index")
+    assert df["symbol"].unique().to_list() == ["SPY"]
+    assert [c[0] for c in client.calls] == ["SPY"]

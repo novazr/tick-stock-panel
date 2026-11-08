@@ -34,3 +34,25 @@ def market_of(symbol: str | None) -> Market | None:
 
 def is_us_symbol(symbol: str | None) -> bool:
     return market_of(symbol) == "us"
+
+
+def active_market() -> Market:
+    """当前实例服务的市场: 跟随日K数据源 (标的维表同样跟随日K源)。
+
+    插件以类属性 ``market = "us"`` 声明所服务的市场; 未声明、TickFlow 或任何读取
+    失败一律视为 A 股, 与改造前行为一致。
+    """
+    try:
+        from app.services import preferences
+
+        name = preferences.get_daily_data_provider()
+        if name == "tickflow":
+            return "cn"
+        from app.data_providers import custom as custom_sources
+
+        if not custom_sources.is_custom_provider(name):
+            return "cn"
+        market = getattr(custom_sources.get_provider(name), "market", "cn")
+    except Exception:  # noqa: BLE001 — 市场判定用于展示层选择, 失败回落 A 股原行为
+        return "cn"
+    return "us" if market == "us" else "cn"

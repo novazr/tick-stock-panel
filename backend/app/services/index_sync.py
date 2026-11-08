@@ -112,6 +112,47 @@ def _fetch_instruments_by_type(instrument_type: str, asset_type_label: str) -> p
     )
 
 
+def _fetch_index_instruments_via_provider() -> pl.DataFrame | None:
+    """日K源为自定义 provider 且提供指数维表时, 用它代替 TickFlow 指数清单。
+
+    与个股维表同一规则 (标的维表跟随日K数据源)。返回 None 表示不由自定义源接管
+    (日K源是 tickflow / 未实现 get_instruments / 未返回指数 / 调用失败), 调用方
+    继续 TickFlow 原路径, 行为与改造前一致。
+    """
+    provider_name = preferences.get_daily_data_provider()
+    if provider_name == "tickflow":
+        return None
+    from app.data_providers import custom as custom_sources
+
+    if not custom_sources.is_custom_provider(provider_name):
+        return None
+    provider = custom_sources.get_provider(provider_name)
+    if not hasattr(provider, "get_instruments"):
+        return None
+    try:
+        items = provider.get_instruments("index") or []
+    except Exception as e:  # noqa: BLE001
+        logger.warning("provider %s 指数维表获取失败, 回退 TickFlow: %s", provider_name, e)
+        return None
+    rows = [
+        {"symbol": str(item["symbol"]), "name": item.get("name") or str(item["symbol"])}
+        for item in items
+        if isinstance(item, dict) and item.get("symbol")
+    ]
+    if not rows:
+        return None
+    logger.info("指数维表 via %s: %d 只", provider_name, len(rows))
+    return (
+        pl.DataFrame(rows)
+        .with_columns([
+            pl.col("symbol").str.split(".").list.first().alias("code"),
+            pl.lit("index").alias("asset_type"),
+        ])
+        .unique(subset=["symbol"], keep="last")
+        .sort("symbol")
+    )
+
+
 def sync_index_instruments(
     repo: KlineRepository,
     pull_index: bool = True,
@@ -125,8 +166,13 @@ def sync_index_instruments(
     index_parts: list[pl.DataFrame] = []
     etf_parts: list[pl.DataFrame] = []
 
+    # 0) 自定义日K源提供指数维表时由其接管 (如美股插件的基准 ETF), 不再拉 TickFlow 指数
+    provider_index = _fetch_index_instruments_via_provider() if pull_index else None
+    if provider_index is not None:
+        index_parts.append(provider_index)
+
     # 1) 免费通道:按开关分别拉 index / etf
-    if pull_index:
+    if pull_index and provider_index is None:
         index_df = _fetch_instruments_by_type("index", "index")
         if not index_df.is_empty():
             index_parts.append(index_df)
@@ -136,7 +182,7 @@ def sync_index_instruments(
             etf_parts.append(etf_df)
 
     # 2) 付费补充:Starter+ 用 get_by_universes 补指数(仅当开启指数拉取)
-    if pull_index:
+    if pull_index and provider_index is None:
         capset = None
         try:
             from app.tickflow import policy

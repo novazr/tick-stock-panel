@@ -15,7 +15,7 @@ import polars as pl
 
 from app.services import preferences
 from app.services.ext_data import ExtConfig, ExtConfigStore
-from app.services.index_const import CORE_INDEX_NAMES as CORE_INDICES
+from app.services.index_const import core_index_names
 
 logger = logging.getLogger(__name__)
 SECTOR_KINDS = {"index", "concept", "industry"}
@@ -142,7 +142,7 @@ class SectorMonitorService:
         targets_by_key: dict[str, dict] = {}
         members_by_key: dict[str, set[str]] = {}
 
-        index_names = dict(CORE_INDICES)
+        index_names = core_index_names()
         try:
             indices = self._repo.get_index_instruments()
             if not indices.is_empty() and "symbol" in indices.columns:

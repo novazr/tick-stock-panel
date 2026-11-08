@@ -84,7 +84,7 @@ export const CORE_INDEXES = [
   { symbol: '000680.SH', name: '科创综指' },
 ] as const
 
-type CoreIndex = (typeof CORE_INDEXES)[number]
+type CoreIndex = { readonly symbol: string; readonly name: string }
 
 const nav = [
   { to: '/',                 label: '看板',     icon: IconDashboard },
@@ -517,10 +517,12 @@ export function Layout() {
   const toggleNavCollapsed = () => {
     setNavStatePersist(navState === 'expanded' ? 'rail' : 'expanded')
   }
-  // 指数条: 固定核心四只 (产品契约, 不再可配置), 常驻显示
-  const sidebarIndexes = CORE_INDEXES
+  // 指数条: 固定核心四只 (产品契约, 不再可配置), 常驻显示; 清单按实例市场由后端下发
+  const sidebarIndexes: readonly CoreIndex[] = settingsState?.core_indexes?.length
+    ? settingsState.core_indexes
+    : CORE_INDEXES
   const { data: sidebarIndexQuotes } = useQuery({
-    queryKey: [...QK.indexQuotes, 'sidebar', 'core'] as const,
+    queryKey: [...QK.indexQuotes, 'sidebar', 'core', sidebarIndexes.map(p => p.symbol).join(',')] as const,
     queryFn: () => api.indexQuotes(sidebarIndexes.map(p => p.symbol)),
     enabled: sidebarIndexes.length > 0,
     placeholderData: (prev) => prev,

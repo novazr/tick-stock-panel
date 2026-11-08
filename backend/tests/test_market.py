@@ -45,3 +45,43 @@ def test_polars_pattern_matches_python_rule():
     symbols = ["AAPL", "BRK-B", "600519.SH", "aapl", "BRK.B", "TOOLONG"]
     vectorized = pl.Series(symbols).str.contains(US_SYMBOL_PATTERN).to_list()
     assert vectorized == [is_us_symbol(s) for s in symbols]
+
+
+class _Provider:
+    def __init__(self, market=None):
+        if market is not None:
+            self.market = market
+
+
+def _patch_daily_provider(monkeypatch, name, provider=None, *, registered=True):
+    from app.data_providers import custom as custom_sources
+    from app.services import preferences
+
+    monkeypatch.setattr(preferences, "get_daily_data_provider", lambda: name)
+    monkeypatch.setattr(custom_sources, "is_custom_provider", lambda n: registered and n == name)
+    monkeypatch.setattr(custom_sources, "get_provider", lambda n: provider)
+
+
+def test_active_market_follows_daily_provider(monkeypatch):
+    from app.market import active_market
+
+    _patch_daily_provider(monkeypatch, "tickflow")
+    assert active_market() == "cn"
+    _patch_daily_provider(monkeypatch, "yahoo_us", _Provider("us"))
+    assert active_market() == "us"
+    # 未声明 market 的插件 (fuyao/tdxquant) 与未注册的源保持 A 股
+    _patch_daily_provider(monkeypatch, "fuyao", _Provider())
+    assert active_market() == "cn"
+    _patch_daily_provider(monkeypatch, "gone", _Provider("us"), registered=False)
+    assert active_market() == "cn"
+
+
+def test_active_market_falls_back_to_cn_on_error(monkeypatch):
+    from app.market import active_market
+    from app.services import preferences
+
+    def boom():
+        raise RuntimeError("prefs unreadable")
+
+    monkeypatch.setattr(preferences, "get_daily_data_provider", boom)
+    assert active_market() == "cn"

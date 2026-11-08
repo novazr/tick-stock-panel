@@ -13,7 +13,7 @@ import polars as pl
 from fastapi import APIRouter, Request
 
 from app.services.ext_data import ExtConfig, ExtConfigStore
-from app.services.index_const import CORE_INDEX_NAMES, CORE_INDEX_SYMBOLS
+from app.services.index_const import core_index_names
 from app.services.screener import ScreenerService
 
 router = APIRouter(prefix="/api/overview", tags=["overview"])
@@ -236,17 +236,19 @@ def _quote_status(request: Request) -> dict:
 
 
 def _index_quotes(request: Request, as_of: date | None = None) -> list[dict]:
+    core_names = core_index_names()
+    core_symbols = tuple(core_names)
     qs = getattr(request.app.state, "quote_service", None)
     rows: list[dict] = []
     if qs and as_of is None:
-        df = qs.get_index_quotes(list(CORE_INDEX_SYMBOLS))
+        df = qs.get_index_quotes(list(core_symbols))
         if not df.is_empty():
             rows = df.to_dicts()
 
     if not rows:
         repo = getattr(request.app.state, "repo", None)
         if repo:
-            placeholders = ", ".join("?" for _ in CORE_INDEX_SYMBOLS)
+            placeholders = ", ".join("?" for _ in core_symbols)
             try:
                 db_rows = repo.execute_all(
                     f"""
@@ -268,7 +270,7 @@ def _index_quotes(request: Request, as_of: date | None = None) -> list[dict]:
                     SELECT symbol, date, last_price, prev_close
                     FROM latest
                     """,
-                    [*CORE_INDEX_SYMBOLS, as_of, as_of],
+                    [*core_symbols, as_of, as_of],
                 )
             except Exception:  # noqa: BLE001
                 db_rows = []
@@ -282,7 +284,7 @@ def _index_quotes(request: Request, as_of: date | None = None) -> list[dict]:
                     change_pct = change_amount / pc * 100
                 rows.append({
                     "symbol": symbol,
-                    "name": CORE_INDEX_NAMES.get(symbol),
+                    "name": core_names.get(symbol),
                     "date": str(dt) if dt else None,
                     "last_price": lp,
                     "close": lp,
@@ -293,11 +295,11 @@ def _index_quotes(request: Request, as_of: date | None = None) -> list[dict]:
 
     by_symbol = {r.get("symbol"): r for r in rows}
     out = []
-    for symbol in CORE_INDEX_SYMBOLS:
+    for symbol in core_symbols:
         r = by_symbol.get(symbol, {"symbol": symbol})
         out.append({
             "symbol": symbol,
-            "name": r.get("name") or CORE_INDEX_NAMES[symbol],
+            "name": r.get("name") or core_names[symbol],
             "last_price": _finite(r.get("last_price") if r.get("last_price") is not None else r.get("close")),
             "change_pct": _finite(r.get("change_pct")),
             "change_amount": _finite(r.get("change_amount")),

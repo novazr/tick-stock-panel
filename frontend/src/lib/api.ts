@@ -2074,6 +2074,9 @@ export interface SettingsState {
   extras_caps: string[]
   // 首次使用引导
   onboarding_completed: boolean
+  // 实例服务的市场 (跟随日K数据源) 与该市场的核心指数; 旧后端缺省时按 A 股处理
+  market?: 'cn' | 'us'
+  core_indexes?: { symbol: string; name: string }[]
   // 配置文件位置 (secrets.json: AI 与数据源 Key 统一存放)
   secrets_path?: string
   // AI 配置

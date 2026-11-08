@@ -52,6 +52,19 @@ class TickflowKeyIn(BaseModel):
     api_key: str
 
 
+def _market_payload() -> dict:
+    from app.market import active_market
+    from app.services.index_const import core_index_names
+
+    market = active_market()
+    return {
+        "market": market,
+        "core_indexes": [
+            {"symbol": symbol, "name": name} for symbol, name in core_index_names(market).items()
+        ],
+    }
+
+
 @router.get("")
 def get_settings() -> dict:
     """返回当前配置概况(Key 脱敏)。"""
@@ -84,6 +97,8 @@ def get_settings() -> dict:
         "extras_caps": extras_caps(),
         # 首次使用引导
         "onboarding_completed": preferences.get_onboarding_completed(),
+        # 实例服务的市场与核心指数 (展示层单一权威: app.services.index_const)
+        **_market_payload(),
         # 配置文件位置 (AI 与数据源 Key 统一存放, 支持外部编辑后热加载)
         "secrets_path": str(secrets_store.file_path()),
         # AI 配置
