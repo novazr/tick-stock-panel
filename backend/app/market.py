@@ -56,3 +56,8 @@ def active_market() -> Market:
     except Exception:  # noqa: BLE001 — 市场判定用于展示层选择, 失败回落 A 股原行为
         return "cn"
     return "us" if market == "us" else "cn"
+
+
+def lot_size(market: Market | None = None) -> int:
+    """最小交易单位 (股): A 股 100 股一手, 美股 1 股起买。未指定市场时跟随实例市场。"""
+    return 1 if (market or active_market()) == "us" else 100

@@ -928,6 +928,11 @@ export interface StrategyDetail {
   trailing_take_profit_activate: number | null
   trailing_take_profit_drawdown: number | null
   max_hold_days: number | null
+  // 加仓 (金字塔): override 优先, 否则策略文件 PYRAMID_* 常量; null = 未设置
+  pyramid_max_adds?: number | null
+  pyramid_add_step?: number | null
+  pyramid_add_size?: number | null
+  pyramid_on_signal?: boolean | null
   display_limit?: number
   order_by: string
   descending: boolean
@@ -1921,6 +1926,8 @@ export interface StrategyBacktestTrade {
   entry_signal_date?: string | null
   exit_signal_date?: string | null
   blocked_exit_days?: number
+  // 组合模式加仓次数; >0 时 entry_price 为加权成本价
+  adds?: number
   entry_signal_id?: string | null
   exit_signal_id?: string | null
 }

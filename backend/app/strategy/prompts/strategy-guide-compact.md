@@ -47,6 +47,11 @@ ENTRY_SIGNALS = []
 EXIT_SIGNALS = []
 STOP_LOSS = -0.05
 MAX_HOLD_DAYS = 20
+# 可选: 加仓 (仅当用户提出加仓/金字塔要求时才写; 不需要就省略这几行)
+# PYRAMID_MAX_ADDS = 2       # 最多加仓次数
+# PYRAMID_ADD_STEP = 0.10    # 价格比上次买入价涨 10% 加一次
+# PYRAMID_ON_SIGNAL = False  # True = 持仓期间买入信号再次出现时加仓 (与 STEP 同设时须信号出现且已涨够)
+# PYRAMID_ADD_SIZE = 0.5     # 每次加仓金额 = 首次买入金额 × 0.5
 
 RULES = """
 1. 规则一

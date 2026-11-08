@@ -225,6 +225,11 @@ def _strategy_detail(
         "trailing_take_profit_activate": overrides.get("trailing_take_profit_activate", getattr(s, "trailing_take_profit_activate", None)) if overrides else getattr(s, "trailing_take_profit_activate", None),
         "trailing_take_profit_drawdown": overrides.get("trailing_take_profit_drawdown", getattr(s, "trailing_take_profit_drawdown", None)) if overrides else getattr(s, "trailing_take_profit_drawdown", None),
         "max_hold_days": overrides.get("max_hold_days", s.max_hold_days) if overrides else s.max_hold_days,
+        # 加仓 (金字塔): 同口径, override 优先, 否则策略文件 PYRAMID_* 常量
+        **{
+            key: overrides.get(key, getattr(s, key, None)) if overrides else getattr(s, key, None)
+            for key in ("pyramid_max_adds", "pyramid_add_step", "pyramid_add_size", "pyramid_on_signal")
+        },
         "order_by": s.meta.get("order_by", "score"),
         "descending": s.meta.get("descending", True),
         "limit": s.meta.get("limit", 30),

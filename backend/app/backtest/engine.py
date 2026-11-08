@@ -141,8 +141,26 @@ class MatcherConfig:
     minute_fill: bool = False
     # 回测资产类型: 分钟K按资产类型分开存储, 精确成交据此路由分钟分区 (不凭代码格式猜测)。
     asset_type: str = "stock"
+    # 最小交易单位 (股): A 股 100 股一手; 美股 1 股起买。由策略层按实例市场设置。
+    lot_size: int = 100
+    # 加仓 (金字塔), 仅组合模式生效; pyramid_max_adds=0 关闭。
+    #   pyramid_add_step: 价格较上次成交价涨到该比例时盘中加仓;
+    #   pyramid_on_signal: 持仓期间买入信号再次出现时加仓 (与 add_step 同设时还须收盘/成交价涨够);
+    #   pyramid_add_size: 每次加仓金额 = 首次建仓金额 × 该倍数 (受现金与总仓位上限钳制)。
+    pyramid_max_adds: int = 0
+    pyramid_add_step: float | None = None
+    pyramid_add_size: float = 0.5
+    pyramid_on_signal: bool = False
 
     def __post_init__(self) -> None:
+        if int(self.lot_size) < 1:
+            raise ValueError("lot_size 必须 ≥ 1")
+        if int(self.pyramid_max_adds) < 0:
+            raise ValueError("pyramid_max_adds 不能为负")
+        if self.pyramid_add_size is None or not (float(self.pyramid_add_size) > 0):
+            raise ValueError("pyramid_add_size 必须 > 0")
+        if self.pyramid_add_step is not None and not (float(self.pyramid_add_step) > 0):
+            raise ValueError("pyramid_add_step 必须 > 0")
         # 解析最终口径: 优先 entry_fill/exit_fill, 否则回退到 matching (向后兼容)。
         if self.entry_fill is None:
             self.entry_fill = self.matching
@@ -189,6 +207,8 @@ class TradeRecord:
     # 仅当该腿由信号触发时填充, 止损/止盈/到期等非信号退出时 exit_signal_id 为 None。
     entry_signal_id: str | None = None
     exit_signal_id: str | None = None
+    # 加仓次数 (组合模式金字塔); 有加仓时 entry_price 为加权成本价, entry_value 为累计投入。
+    adds: int = 0
 
 
 @dataclass
@@ -2006,6 +2026,10 @@ class BacktestEngine:
         peak = cash
         max_positions = max(int(config.max_positions), 0)
         max_exposure_pct = min(max(float(config.max_exposure_pct), 0.0), 1.0)
+        lot_size = int(config.lot_size)
+        pyramid_max_adds = int(config.pyramid_max_adds)
+        pyramid_step = float(config.pyramid_add_step) if config.pyramid_add_step is not None else None
+        pyramid_enabled = pyramid_max_adds > 0 and (pyramid_step is not None or config.pyramid_on_signal)
         positions: dict[int, dict] = {}
         last_close = np.full(asset_count, np.nan, dtype=np.float64)
         trades: list[TradeRecord] = []
@@ -2028,6 +2052,9 @@ class BacktestEngine:
             "sell_limit_down": 0,
             "pending_exit": 0,
         }
+        if pyramid_enabled:
+            execution_stats["pyramid_adds"] = 0
+            execution_stats["pyramid_blocked"] = 0
 
         minute_cache: dict = {}
         if config.minute_fill:
@@ -2207,6 +2234,7 @@ class BacktestEngine:
                     pos.get("pending_exit_signal_id")
                     or _signal_id(int(matrix.exit_signal_code[time_id, asset_id]), matrix.exit_signal_ids)
                 ) if reason == "signal" else None,
+                adds=int(pos.get("adds", 0)),
             ))
 
         def _try_sell(
@@ -2245,6 +2273,63 @@ class BacktestEngine:
                 return False
             _sell(time_id, asset_id, reason, signal_date, sold_today, override)
             return True
+
+        def _pyramid_fill_price(time_id: int, asset_id: int, pos: dict) -> float | None:
+            """本格加仓成交价; 未触发返回 None。只用当日及以前的价格。"""
+            last_fill = float(pos["last_fill_price"])
+            if config.pyramid_on_signal:
+                if not matrix.entry[time_id, asset_id]:
+                    return None
+                ok, _blocked = _can_buy(time_id, asset_id)
+                if not ok:
+                    return None
+                price = _refill_price(time_id, asset_id, "buy", float(entry_prices[time_id, asset_id]))
+                if pyramid_step is not None and price < last_fill * (1 + pyramid_step) - 1e-9:
+                    return None
+                return price
+            # 按涨幅: 开盘已越过触发价 → 开盘价; 盘中穿越 → 触发价
+            trigger = last_fill * (1 + float(pyramid_step))
+            open_price = float(matrix.open[time_id, asset_id])
+            high_price = float(matrix.high[time_id, asset_id])
+            if _one_price_limit(time_id, asset_id, "up"):
+                return None
+            if _valid_price(open_price) and open_price >= trigger:
+                return open_price
+            if _valid_price(high_price) and high_price >= trigger:
+                return trigger
+            return None
+
+        def _process_pyramid_adds(time_id: int, date_text: str) -> None:
+            nonlocal cash
+            for asset_id in list(positions):
+                pos = positions[asset_id]
+                if pos.get("pending_exit_reason") or pos["entry_date"] == date_text:
+                    continue
+                if pos["adds"] >= pyramid_max_adds or not matrix.tradable[time_id, asset_id]:
+                    continue
+                price = _pyramid_fill_price(time_id, asset_id, pos)
+                if price is None or not _valid_price(price):
+                    continue
+                market_value = _market_value()
+                capacity = (cash + market_value) * max_exposure_pct - market_value
+                allocation = min(float(pos["initial_value"]) * float(config.pyramid_add_size), cash, capacity)
+                shares = (
+                    np.floor(allocation / (price * (1 + buy_cost_pct)) / lot_size) * lot_size
+                    if allocation > 0 else 0.0
+                )
+                if shares <= 0:
+                    _count("pyramid_blocked")
+                    continue
+                cost = shares * price * (1 + buy_cost_pct)
+                total_shares = pos["shares"] + shares
+                pos["entry_price"] = (pos["entry_price"] * pos["shares"] + price * shares) / total_shares
+                pos["shares"] = total_shares
+                pos["lots"] = total_shares / lot_size
+                pos["entry_value"] += cost
+                pos["last_fill_price"] = price
+                pos["adds"] += 1
+                cash -= cost
+                _count("pyramid_adds")
 
         for time_id, date_label in enumerate(matrix.timestamp_labels):
             date_text = date_label[:10]
@@ -2324,6 +2409,9 @@ class BacktestEngine:
                     reason = "end"
                 if reason:
                     _try_sell(time_id, asset_id, reason, signal_date, sold_today)
+
+            if pyramid_enabled:
+                _process_pyramid_adds(time_id, date_text)
 
             if time_id < time_count - 1 and max_positions > 0:
                 candidates: list[tuple[int, float]] = []
@@ -2406,7 +2494,7 @@ class BacktestEngine:
                             entry_price = _refill_price(
                                 time_id, asset_id, "buy", float(entry_prices[time_id, asset_id])
                             )
-                            shares = np.floor(allocation / (entry_price * (1 + buy_cost_pct)) / 100) * 100
+                            shares = np.floor(allocation / (entry_price * (1 + buy_cost_pct)) / lot_size) * lot_size
                             entry_value = shares * entry_price * (1 + buy_cost_pct)
                             if shares <= 0:
                                 _count("buy_lot_size")
@@ -2429,11 +2517,14 @@ class BacktestEngine:
                                 "entry_price": entry_price,
                                 "entry_value": entry_value,
                                 "shares": shares,
-                                "lots": shares / 100,
+                                "lots": shares / lot_size,
                                 "position_pct": entry_value / equity_before if equity_before > 0 else 0.0,
                                 "entry_score": entry_score,
                                 "max_high": entry_price,
                                 "hold_days": 0,
+                                "adds": 0,
+                                "initial_value": entry_value,
+                                "last_fill_price": entry_price,
                                 "pending_exit_reason": None,
                                 "pending_exit_signal_date": None,
                                 "pending_exit_signal_id": None,

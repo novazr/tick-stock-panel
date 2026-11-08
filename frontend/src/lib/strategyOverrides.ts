@@ -25,6 +25,10 @@ export function buildDefaultOverrides(detail: StrategyDetail): Record<string, an
     score_min: null,
     score_max: null,
     max_hold_days: detail.max_hold_days,
+    pyramid_max_adds: detail.pyramid_max_adds ?? null,
+    pyramid_add_step: detail.pyramid_add_step ?? null,
+    pyramid_add_size: detail.pyramid_add_size ?? null,
+    pyramid_on_signal: !!detail.pyramid_on_signal,
   }
 }
 

@@ -661,6 +661,40 @@ class StrategyBacktestConfig:
             self.exit_fill = self.matching
 
 
+def resolve_pyramid_settings(overrides: Mapping | None, strategy) -> dict:
+    """加仓参数: 界面覆盖 (overrides) 优先, 否则策略文件 PYRAMID_* 常量; 越界钳制。
+
+    没有任何触发方式 (涨幅 / 信号) 时视为关闭, 避免「设了次数却从不加仓」的误解。
+    """
+    overrides = overrides or {}
+
+    def _pick(key: str):
+        return overrides[key] if key in overrides else getattr(strategy, key, None)
+
+    def _num(value, lo: float, hi: float) -> float | None:
+        if value is None or value == "" or isinstance(value, bool):
+            return None
+        try:
+            v = abs(float(value))
+        except (TypeError, ValueError):
+            return None
+        return min(max(v, lo), hi)
+
+    max_adds = _num(_pick("pyramid_max_adds"), 0, 10)
+    step = _num(_pick("pyramid_add_step"), 0.005, 2.0)
+    size = _num(_pick("pyramid_add_size"), 0.05, 5.0)
+    on_signal = bool(_pick("pyramid_on_signal") or False)
+    max_adds_int = int(max_adds) if max_adds is not None else 0
+    if step is None and not on_signal:
+        max_adds_int = 0
+    return {
+        "pyramid_max_adds": max_adds_int,
+        "pyramid_add_step": step,
+        "pyramid_add_size": size if size is not None else 0.5,
+        "pyramid_on_signal": on_signal,
+    }
+
+
 def _resolve_position_policy(
     config: StrategyBacktestConfig,
 ) -> tuple[Callable[..., object] | None, dict | None]:
@@ -1409,6 +1443,10 @@ class StrategyBacktestService:
             overrides.get("score_max"),
         )
 
+        pyramid = resolve_pyramid_settings(overrides, s)
+        from app.market import lot_size as _market_lot_size
+        lot_size = _market_lot_size()
+
         if s.execution_backend == "minute_filter":
             # 分钟策略回测: 逐交易日回放 filter_minute_history (与实盘策略同源),
             # 信号分钟收盘价入场, 之后复用日K矩阵模拟的离场与组合管理。
@@ -1628,6 +1666,8 @@ class StrategyBacktestService:
             position_policy_params=position_policy_params,
             minute_fill=config.minute_fill,
             asset_type=config.asset_type,
+            lot_size=lot_size,
+            **pyramid,
         )
         t_signal = time.perf_counter()
         selection_stats: dict[str, int | bool]
@@ -2068,6 +2108,8 @@ class StrategyBacktestService:
             "trailing_take_profit_activate": trailing_take_profit_activate,
             "trailing_take_profit_drawdown": trailing_take_profit_drawdown,
             "max_hold_days": max_hold_days,
+            **pyramid,
+            "lot_size": lot_size,
             "full_horizon_days": full_horizon_days,
             "score_min": score_min,
             "score_max": score_max,
@@ -3000,6 +3042,7 @@ class StrategyBacktestService:
             "blocked_exit_days": getattr(t, "blocked_exit_days", 0),
             "entry_signal_id": getattr(t, "entry_signal_id", None),
             "exit_signal_id": getattr(t, "exit_signal_id", None),
+            "adds": getattr(t, "adds", 0),
         }
 
     @staticmethod

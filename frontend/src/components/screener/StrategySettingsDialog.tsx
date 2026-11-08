@@ -50,7 +50,25 @@ function overlaySupported(d: StrategyDetail | null): boolean {
 type SettingsPage = 'screen' | 'scoring' | 'trading' | 'children'
 
 // ===== 基线快照: 用于「未保存改动」提示 (分区独立比较) =====
+/** 加仓 (金字塔) 规则: 对应后端 pyramid_* overrides; maxAdds 为空/0 = 不加仓 */
+interface PyramidCfg {
+  maxAdds: number | null
+  step: number | null
+  size: number | null
+  onSignal: boolean
+}
+const EMPTY_PYRAMID: PyramidCfg = { maxAdds: null, step: null, size: null, onSignal: false }
+function pyramidFromDetail(d: StrategyDetail): PyramidCfg {
+  return {
+    maxAdds: d.pyramid_max_adds ?? null,
+    step: d.pyramid_add_step ?? null,
+    size: d.pyramid_add_size ?? null,
+    onSignal: !!d.pyramid_on_signal,
+  }
+}
+
 interface SnapshotInput {
+  py: PyramidCfg
   name: string
   desc: string
   limit: number | null
@@ -84,7 +102,7 @@ function buildSnapshot(v: SnapshotInput) {
       overlay: v.overlay.map(c => ({ left: c.left, op: c.op, right: c.right, leftDays: c.leftDays ?? 0, rightDays: c.rightDays ?? 0 })),
     }),
     scoring: JSON.stringify({ s: v.scoring, d: v.dirs }),
-    trading: JSON.stringify({ sl: absRisk(v.sl), mh: v.mh, tp: absRisk(v.tp), ts: absRisk(v.ts), ta: absRisk(v.ta), td: absRisk(v.td), en: v.en, ex: v.ex }),
+    trading: JSON.stringify({ sl: absRisk(v.sl), mh: v.mh, tp: absRisk(v.tp), ts: absRisk(v.ts), ta: absRisk(v.ta), td: absRisk(v.td), en: v.en, ex: v.ex, py: v.py }),
     children: JSON.stringify(v.children),
   }
 }
@@ -310,6 +328,7 @@ export function StrategySettingsDialog({ strategyId, onClose, onSaved, onAiModif
   const [trailingStop, setTrailingStop] = useState<number | null>(null)
   const [ttpActivate, setTtpActivate] = useState<number | null>(null)
   const [ttpDrawdown, setTtpDrawdown] = useState<number | null>(null)
+  const [pyramid, setPyramid] = useState<PyramidCfg>(EMPTY_PYRAMID)
   const [entrySignals, setEntrySignals] = useState<string[]>([])
   const [exitSignals, setExitSignals] = useState<string[]>([])
   const [displayLimit, setDisplayLimit] = useState<number | null>(null)
@@ -373,6 +392,7 @@ export function StrategySettingsDialog({ strategyId, onClose, onSaved, onAiModif
     setTrailingStop(d.trailing_stop)
     setTtpActivate(d.trailing_take_profit_activate)
     setTtpDrawdown(d.trailing_take_profit_drawdown)
+    setPyramid(pyramidFromDetail(d))
     setEntrySignals(d.entry_signals ?? [])
     setExitSignals(d.exit_signals ?? [])
     const overlay = (d.overlay_filter ?? []).map(c => ({ leftDays: 0, rightDays: 0, ...c }))
@@ -393,6 +413,7 @@ export function StrategySettingsDialog({ strategyId, onClose, onSaved, onAiModif
       sl: d.stop_loss, mh: d.max_hold_days,
       tp: d.take_profit, ts: d.trailing_stop,
       ta: d.trailing_take_profit_activate, td: d.trailing_take_profit_drawdown,
+      py: pyramidFromDetail(d),
       en: d.entry_signals ?? [], ex: d.exit_signals ?? [],
       children: children.map(c => ({ id: c.id, w: Math.round(c.weight) })),
     }))
@@ -424,9 +445,10 @@ export function StrategySettingsDialog({ strategyId, onClose, onSaved, onAiModif
     overlay: overlayFilter, scoring, dirs: scoringDirections,
     sl: stopLoss, mh: maxHoldDays,
     tp: takeProfit, ts: trailingStop, ta: ttpActivate, td: ttpDrawdown,
+    py: pyramid,
     en: entrySignals, ex: exitSignals,
     children: compositeChildren.map(c => ({ id: c.id, w: Math.round(c.weight) })),
-  }), [strategyName, strategyDesc, displayLimit, basicFilter, basicFilterEnabled, params, overlayFilter, scoring, scoringDirections, stopLoss, maxHoldDays, takeProfit, trailingStop, ttpActivate, ttpDrawdown, entrySignals, exitSignals, compositeChildren])
+  }), [strategyName, strategyDesc, displayLimit, basicFilter, basicFilterEnabled, params, overlayFilter, scoring, scoringDirections, stopLoss, maxHoldDays, takeProfit, trailingStop, ttpActivate, ttpDrawdown, pyramid, entrySignals, exitSignals, compositeChildren])
 
   const dirty = useMemo(() => {
     if (!baseline) return { info: false, screen: false, scoring: false, trading: false, children: false }
@@ -472,6 +494,10 @@ export function StrategySettingsDialog({ strategyId, onClose, onSaved, onAiModif
         trailing_take_profit_activate: ttpActivate,
         trailing_take_profit_drawdown: ttpDrawdown,
         max_hold_days: maxHoldDays,
+        pyramid_max_adds: pyramid.maxAdds,
+        pyramid_add_step: pyramid.step,
+        pyramid_add_size: pyramid.size,
+        pyramid_on_signal: pyramid.onSignal,
         entry_signals: entrySignals,
         exit_signals: exitSignals,
         display_limit: displayLimit,
@@ -806,6 +832,50 @@ export function StrategySettingsDialog({ strategyId, onClose, onSaved, onAiModif
                             </div>
                           </div>
                           <div className="text-[10px] leading-4 text-muted/70">回撤止盈：涨幅达到「启动」后启用，从高点回撤「回撤」个百分点即卖出；留空 = 不启用对应纪律。</div>
+                        </div>
+                      </Card>
+
+                      <Card icon={Layers} title="加仓规则" accent="text-sky-400">
+                        <div className="space-y-2">
+                          <div className="grid grid-cols-2 gap-x-6 gap-y-2">
+                            <div className="flex items-center gap-2">
+                              <span className={FIELD_LABEL_CLS}>最多加仓</span>
+                              <input
+                                type="number" min={0} max={10} step={1}
+                                value={pyramid.maxAdds ?? ''}
+                                placeholder="不加仓"
+                                onChange={e => setPyramid(p => ({ ...p, maxAdds: e.target.value === '' ? null : Math.max(0, Math.min(10, Math.round(Number(e.target.value)))) }))}
+                                className={`${FIELD_INPUT_CLS} w-[76px] px-2 text-center`}
+                              />
+                              <span className="text-[10px] text-muted">次</span>
+                            </div>
+                            <RiskPctField
+                              label="每涨多少加"
+                              value={pyramid.step}
+                              min={0.5} max={200}
+                              onChange={n => setPyramid(p => ({ ...p, step: n }))}
+                            />
+                            <RiskPctField
+                              label="每次加仓量"
+                              value={pyramid.size}
+                              min={5} max={500} step={5}
+                              unit="% 首仓"
+                              onChange={n => setPyramid(p => ({ ...p, size: n }))}
+                            />
+                            <label className="flex items-center gap-2 cursor-pointer">
+                              <span className={FIELD_LABEL_CLS}>买点再现时加</span>
+                              <input
+                                type="checkbox"
+                                checked={pyramid.onSignal}
+                                onChange={e => setPyramid(p => ({ ...p, onSignal: e.target.checked }))}
+                                className="h-3.5 w-3.5 accent-sky-500"
+                              />
+                            </label>
+                          </div>
+                          <div className="text-[10px] leading-4 text-muted/70">
+                            只填「每涨多少加」：价格比上次买入价涨到该幅度就加一次；只勾「买点再现时加」：持仓期间买入信号再次出现就加；两者都设：信号出现且已涨够才加。
+                            每次加仓金额 = 首次买入金额 × 加仓量（留空按 50%），受现金和总仓位上限限制；加仓后止损、止盈按平均成本计算。仅组合回测生效。
+                          </div>
                         </div>
                       </Card>
 

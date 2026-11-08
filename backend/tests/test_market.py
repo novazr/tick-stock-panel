@@ -85,3 +85,14 @@ def test_active_market_falls_back_to_cn_on_error(monkeypatch):
 
     monkeypatch.setattr(preferences, "get_daily_data_provider", boom)
     assert active_market() == "cn"
+
+
+def test_lot_size_by_market(monkeypatch):
+    from app.market import lot_size
+
+    assert lot_size("cn") == 100
+    assert lot_size("us") == 1
+    _patch_daily_provider(monkeypatch, "yahoo_us", _Provider("us"))
+    assert lot_size() == 1
+    _patch_daily_provider(monkeypatch, "tickflow")
+    assert lot_size() == 100

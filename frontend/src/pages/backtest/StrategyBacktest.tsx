@@ -44,6 +44,7 @@ import { ScoringEditor } from '@/components/ScoringEditor'
 import { strategyResultCandidate } from './researchCandidates'
 import { BacktestEvidencePanel } from './components/BacktestEvidencePanel'
 import { buildDailyNavItems, buildTradeKeyMap, buildTradesNavItems, type TradeNavItem } from './tradeNav'
+import { currentMarket } from '@/lib/market-palette'
 
 const formatDate = (date: Date) => date.toISOString().slice(0, 10)
 const monthsAgo = (months: number) => {
@@ -990,7 +991,7 @@ export function StrategyBacktest({ loadCandidate, onLoadConsumed }: {
     saved ? (saved.exitFill ?? saved.matching ?? 'close_t') : 'open_t+1',
   )
   const [fees, setFees] = useState(saved?.fees ?? '2')
-  const [stampTax, setStampTax] = useState(saved?.stampTax ?? '1')
+  const [stampTax, setStampTax] = useState(saved?.stampTax ?? (currentMarket() === 'us' ? '0' : '1'))  // 美股无印花税
   const [slippage, setSlippage] = useState(saved?.slippage ?? '5')
   const [maxPositions, setMaxPositions] = useState(saved?.maxPositions ?? '10')
   const [maxExposure, setMaxExposure] = useState(saved?.maxExposure ?? '100')
@@ -2755,7 +2756,7 @@ export function StrategyBacktest({ loadCandidate, onLoadConsumed }: {
                             <td className="px-4 py-2.5 text-right">
                               <div className="num text-foreground">{fmtPct(t.position_pct, 2)}</div>
                               <div className="mt-0.5 text-[11px] text-muted">
-                                <span className="num">{fmtLots(t.lots)}</span> 手
+                                {currentMarket() !== 'us' && <><span className="num">{fmtLots(t.lots)}</span> 手</>}
                                 <span className="ml-1 num">{fmtShares(t.shares)}</span> 股
                               </div>
                             </td>
@@ -2766,6 +2767,7 @@ export function StrategyBacktest({ loadCandidate, onLoadConsumed }: {
                             <td className="px-4 py-2.5 text-right num text-secondary">
                               <div>{t.duration} 天</div>
                               {!!t.blocked_exit_days && <div className="mt-0.5 text-[11px] text-amber-400">阻塞 {t.blocked_exit_days} 天</div>}
+                              {!!t.adds && <div className="mt-0.5 text-[11px] text-sky-400">加仓 {t.adds} 次 · 成本为均价</div>}
                             </td>
                             <td className="px-4 py-2.5"><ExitReasonBadge reason={t.exit_reason} signalId={t.exit_signal_id} signalNames={signalNames} /></td>
                           </tr>

@@ -35,6 +35,7 @@
 1. **META**：id(name, description, tags, params, scoring, basic_filter, limit 等)
 2. **ENTRY_SIGNALS / EXIT_SIGNALS**：根据策略逻辑自行选择合适的信号列（参考下方可用信号表），不要照抄示例
 3. **STOP_LOSS / MAX_HOLD_DAYS**：根据策略类型合理设定，做多止损一般为 -5%~-8%，短线持有 5~20 天
+   - 用户提到加仓/金字塔/分批买入时，再声明 PYRAMID_MAX_ADDS（最多加仓次数）、PYRAMID_ADD_STEP（每涨多少加，如 0.10）、PYRAMID_ON_SIGNAL（买入条件再次出现时加）、PYRAMID_ADD_SIZE（每次加仓金额占首仓的倍数）；没提就不要写
 4. **RULES**：中文逐条列出核心筛选逻辑（至少 3 条），准确完整
 5. **EXECUTION_BACKEND + filter() 或 filter_history()**：只选择一个后端和一份核心筛选逻辑
 

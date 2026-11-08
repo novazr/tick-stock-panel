@@ -212,6 +212,11 @@ class StrategyDef:
     # 仅 minute_filter: META["daily_history_bars"] 声明需要的日线历史窗口 (0=不需要;
     # >0 时 filter_minute_history 必须接受 daily 关键字, 引擎注入 context.daily_history)
     minute_daily_bars: int = 0
+    # 加仓 (金字塔) 默认值: 策略文件 PYRAMID_* 常量; 未声明为 None (关闭), 界面覆盖优先
+    pyramid_max_adds: int | None = None
+    pyramid_add_step: float | None = None
+    pyramid_add_size: float | None = None
+    pyramid_on_signal: bool | None = None
     # 模块 SCORING 常量的因子键 (custom_factor_* 排名策略用; 策略包闭包消费)
     scoring_columns: tuple[str, ...] = ()
 
@@ -622,6 +627,10 @@ class StrategyEngine:
             trailing_take_profit_activate=getattr(mod, "TRAILING_TAKE_PROFIT_ACTIVATE", None),
             trailing_take_profit_drawdown=getattr(mod, "TRAILING_TAKE_PROFIT_DRAWDOWN", None),
             max_hold_days=getattr(mod, "MAX_HOLD_DAYS", None),
+            pyramid_max_adds=getattr(mod, "PYRAMID_MAX_ADDS", None),
+            pyramid_add_step=getattr(mod, "PYRAMID_ADD_STEP", None),
+            pyramid_add_size=getattr(mod, "PYRAMID_ADD_SIZE", None),
+            pyramid_on_signal=getattr(mod, "PYRAMID_ON_SIGNAL", None),
             filter_fn=filter_fn,
             filter_history_fn=filter_history_fn,
             required_features=_resolve_required_features(meta, mod, filter_history_fn, path),

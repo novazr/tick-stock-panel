@@ -23,6 +23,7 @@
 - 增/删/改参数 → 更新 META["params"]，同步修改当前执行后端对应的 `filter()`、`filter_history()` 或 `MATRIX_STRATEGY`；分钟策略使用 `filter_minute_history()`
 - 调整信号 → 更新 ENTRY_SIGNALS / EXIT_SIGNALS
 - 修改止损/持有 → 更新 STOP_LOSS / MAX_HOLD_DAYS
+- 修改加仓规则 → 更新 PYRAMID_MAX_ADDS / PYRAMID_ADD_STEP / PYRAMID_ON_SIGNAL / PYRAMID_ADD_SIZE
 - 调整评分 → 更新 META["scoring"]；日线使用真实数值字段或 `ma20_bias`，分钟使用函数返回的数值列，非空权重总和保持 1.0
 - 修改筛选逻辑 → 更新唯一公式；日线策略新增历史回溯时切换为 `python_history_legacy` + `filter_history()`，移除回溯时切回 `polars_expr` + `filter()`；分钟策略叠加日线条件时用 `daily_history_bars` 与 `daily` 注入，不得改成日线入口
 
