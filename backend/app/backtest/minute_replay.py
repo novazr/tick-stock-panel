@@ -92,6 +92,16 @@ def _scalar_limit_up_price(prev_close: float, limit_pct: float) -> float:
     return ((cents * numerator + 50) // 100) / 100
 
 
+def _blocked_by_limit_up(
+    symbol: str, day: date, name: str | None, reference: float, minute_raw: float,
+) -> bool:
+    """触发分钟原始价已到涨停价 → 封板买不进; 无涨跌幅限制的市场 (美股) 永不拒买。"""
+    limit_pct = price_limit_pct(symbol, day, is_risk_warning=is_risk_warning_name(name))
+    if limit_pct is None:
+        return False
+    return minute_raw >= _scalar_limit_up_price(reference, limit_pct) - 1e-9
+
+
 @dataclass
 class MinuteReplayHit:
     """一个盘中入场信号: 触发分钟收盘买入。"""
@@ -262,10 +272,7 @@ class MinuteSignalReplayer:
                         if prev_adj > 0 and adj > 0 and abs(adj - prev_adj) > 1e-9
                         else prev
                     )
-                    limit_up = _scalar_limit_up_price(
-                        reference, price_limit_pct(str(symbol), day, is_risk_warning=is_risk_warning_name(name)),
-                    )
-                    if minute_raw >= limit_up - 1e-9:
+                    if _blocked_by_limit_up(str(symbol), day, name, reference, minute_raw):
                         result.buy_limit_up += 1
                         continue
                 trigger = row.get("last_datetime")

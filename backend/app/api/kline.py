@@ -379,6 +379,10 @@ def _get_price_limit_info(
         "no_limit": False,
         "source": "rule",
     }
+    # 无涨跌幅限制的市场 (美股): 与上市初期无限制窗口同语义, 不画涨跌停带
+    if info["rate"] is None:
+        info["no_limit"] = True
+        return info
 
     # instrument 行一次取出: 今日权威涨跌停价 + listing_date 窗口判定共用
     row: dict | None = None

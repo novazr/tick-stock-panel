@@ -1,4 +1,9 @@
-"""A-share price-limit rules shared by indicators, backtests, and APIs."""
+"""A-share price-limit rules shared by indicators, backtests, and APIs.
+
+美股没有日内涨跌幅限制: 标量规则返回 ``None``, polars 返回 null, numpy 返回 NaN,
+下游沿用既有「无涨跌幅限制日」语义 (判定价为 null, 不画涨跌停带, 不判封板)。
+无法识别市场的代码保持原 A 股主板口径, 与改造前行为一致。
+"""
 
 from __future__ import annotations
 
@@ -7,6 +12,8 @@ from datetime import date, datetime, timedelta
 
 import numpy as np
 import polars as pl
+
+from app.market import US_SYMBOL_PATTERN, is_us_symbol
 
 MAIN_BOARD_ST_LIMIT_CHANGE_DATE = date(2026, 7, 6)
 # 创业板注册制改革首日: 此前创业板与主板同为 ±10% (风险警示股 ±5%), 当日起 ±20%。
@@ -25,7 +32,10 @@ def is_risk_warning_name(name: str | None) -> bool:
 _GEM_PREFIXES = ("300", "301", "302")
 
 
-def board_limit_pct(symbol: str) -> float:
+def board_limit_pct(symbol: str) -> float | None:
+    """板块涨跌幅; 美股无限制返回 None。"""
+    if is_us_symbol(symbol):
+        return None
     if symbol.endswith(".BJ"):
         return BEIJING_BOARD_LIMIT
     if symbol.startswith((*_GEM_PREFIXES, "688", "689")):
@@ -42,8 +52,10 @@ def price_limit_pct(
     trade_date: date,
     *,
     is_risk_warning: bool = False,
-) -> float:
+) -> float | None:
     base = board_limit_pct(symbol)
+    if base is None:
+        return None
     if _is_gem(symbol) and trade_date < GEM_20PCT_LIMIT_START_DATE:
         base = MAIN_BOARD_LIMIT
     if (
@@ -86,7 +98,7 @@ NO_LIMIT_CALENDAR_MARGIN_DAYS_BJ = 3
 
 def no_limit_window_days(symbol: str, listing_date: date | None) -> int:
     """上市初期无涨跌幅限制的交易日窗口数; 0 = 不适用 (老股/无上市日)。"""
-    if listing_date is None:
+    if listing_date is None or is_us_symbol(symbol):
         return 0
     if symbol.endswith(".BJ"):
         return NO_LIMIT_WINDOW_TRADING_DAYS_BJ if listing_date >= BJ_OPENING_DATE else 0
@@ -165,8 +177,10 @@ def polars_price_limit_pct(
         & ~is_non_main
         & (trade_date < pl.lit(MAIN_BOARD_ST_LIMIT_CHANGE_DATE))
     )
+    is_us = symbol.str.contains(US_SYMBOL_PATTERN).fill_null(False)
     return (
-        pl.when(legacy_main_st).then(LEGACY_MAIN_BOARD_ST_LIMIT)
+        pl.when(is_us).then(None)
+        .when(legacy_main_st).then(LEGACY_MAIN_BOARD_ST_LIMIT)
         .otherwise(base)
         .cast(pl.Float64)
     )
@@ -189,9 +203,9 @@ def numpy_limit_pct_vectors(
     symbols: Sequence[str],
     names: Sequence[str],
 ) -> tuple[np.ndarray, np.ndarray]:
-    """Return pre/post-change vectors once; callers select one per date."""
+    """Return pre/post-change vectors once; callers select one per date (NaN = no limit)."""
     current = np.fromiter(
-        (board_limit_pct(str(symbol)) for symbol in symbols),
+        (np.nan if (pct := board_limit_pct(str(symbol))) is None else pct for symbol in symbols),
         dtype=np.float64,
         count=len(symbols),
     )
@@ -284,13 +298,14 @@ def numpy_limit_price(
     *,
     up: bool,
 ) -> np.ndarray:
-    """NumPy counterpart of :func:`polars_limit_price`."""
+    """NumPy counterpart of :func:`polars_limit_price`; NaN limit (no limit) yields NaN."""
     sign = 1 if up else -1
-    numerator = np.rint((1.0 + sign * limit_pct) * 100.0).astype(np.int64)
+    limit_pct = np.broadcast_to(np.asarray(limit_pct, dtype=np.float64), previous.shape)
     result = np.full(previous.shape, np.nan, dtype=np.float64)
-    finite = np.isfinite(previous)
+    finite = np.isfinite(previous) & np.isfinite(limit_pct)
+    numerator = np.rint((1.0 + sign * limit_pct[finite]) * 100.0).astype(np.int64)
     cents = np.floor(previous[finite] * 100.0 + 0.5).astype(np.int64)
     result[finite] = (
-        ((cents * numerator[finite] + 50) // 100).astype(np.float64) / 100.0
+        ((cents * numerator + 50) // 100).astype(np.float64) / 100.0
     )
     return result
