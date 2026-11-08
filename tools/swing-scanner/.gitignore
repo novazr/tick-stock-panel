@@ -1,0 +1,4 @@
+out/
+__pycache__/
+swing_compare.csv
+swing_runs.pkl
