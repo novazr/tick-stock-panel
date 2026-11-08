@@ -7,7 +7,7 @@
 打开 **PowerShell**（开始菜单搜索 PowerShell），粘贴下面这一行回车：
 
 ```powershell
-powershell -ExecutionPolicy Bypass -c "irm https://raw.githubusercontent.com/novazr/tick-stock-panel/feat/us-market/scripts/install-us-windows.ps1 | iex"
+irm https://raw.githubusercontent.com/novazr/tick-stock-panel/feat/us-market/scripts/install-us-windows.ps1 -OutFile $env:TEMP\tsp-install.ps1; powershell -ExecutionPolicy Bypass -File $env:TEMP\tsp-install.ps1
 ```
 
 脚本会自动安装缺少的工具、下载代码、新开一个窗口启动网站、切换到 Yahoo 美股数据源、开始同步数据，并打开浏览器。

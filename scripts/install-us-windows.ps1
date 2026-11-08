@@ -1,7 +1,8 @@
-# 美股版一键安装 / 更新 + 启动 (Windows PowerShell)
+﻿# 美股版一键安装 / 更新 + 启动 (Windows PowerShell)
 #
 # 用法 (在 PowerShell 里粘贴一行):
-#   powershell -ExecutionPolicy Bypass -c "irm https://raw.githubusercontent.com/novazr/tick-stock-panel/feat/us-market/scripts/install-us-windows.ps1 | iex"
+#   irm https://raw.githubusercontent.com/novazr/tick-stock-panel/feat/us-market/scripts/install-us-windows.ps1 -OutFile $env:TEMP\tsp-install.ps1; powershell -ExecutionPolicy Bypass -File $env:TEMP\tsp-install.ps1
+# 本文件带 UTF-8 BOM: Windows PowerShell 5.1 按 -File 运行时才能正确读取中文。
 #
 # 做的事情:
 #   1. 缺什么装什么: Git / Node.js LTS / uv (winget), pnpm (npm)
@@ -78,8 +79,14 @@ if ($running) {
     Warn '检测到网站已在运行; 如需加载新代码, 关掉那个窗口后再运行本命令'
 } else {
     Say '新开窗口启动网站 (首次会安装依赖, 约 3~10 分钟, 请保持该窗口打开)'
+    # dev.ps1 为无 BOM 的 UTF-8; 中文系统的 PowerShell 5.1 会按 GBK 读取导致解析出错。
+    # 复制一份带 BOM 的到同目录 (.dev-run.ps1, 已加入 .gitignore) 再运行, 不改动原文件。
+    $devSrc = Join-Path $Target 'dev.ps1'
+    $devRun = Join-Path $Target '.dev-run.ps1'
+    $text = [IO.File]::ReadAllText($devSrc, (New-Object Text.UTF8Encoding $false))
+    [IO.File]::WriteAllText($devRun, $text, (New-Object Text.UTF8Encoding $true))
     Start-Process powershell -ArgumentList @(
-        '-NoExit', '-ExecutionPolicy', 'Bypass', '-File', ('"' + (Join-Path $Target 'dev.ps1') + '"'), '-NoReload'
+        '-NoExit', '-ExecutionPolicy', 'Bypass', '-File', ('"' + $devRun + '"'), '-NoReload'
     ) -WorkingDirectory $Target
 }
 
