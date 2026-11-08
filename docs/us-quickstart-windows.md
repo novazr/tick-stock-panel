@@ -2,6 +2,17 @@
 
 适用于还在改造中的美股版本。上游的 Windows 安装包不含这些改动，所以用源码方式运行。
 
+## 最快方式：一行命令
+
+打开 **PowerShell**（开始菜单搜索 PowerShell），粘贴下面这一行回车：
+
+```powershell
+powershell -ExecutionPolicy Bypass -c "irm https://raw.githubusercontent.com/novazr/tick-stock-panel/feat/us-market/scripts/install-us-windows.ps1 | iex"
+```
+
+脚本会自动安装缺少的工具、下载代码、新开一个窗口启动网站、切换到 Yahoo 美股数据源、开始同步数据，并打开浏览器。
+以后要启动或更新，重新运行同一行即可。下面是手动步骤，脚本出问题时再看。
+
 ## 1. 一次性安装工具
 
 打开 **PowerShell**（开始菜单搜索 PowerShell），依次执行：
