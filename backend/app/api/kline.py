@@ -1669,6 +1669,17 @@ async def clear_minute(request: Request):
     return {"status": "ok", "removed": removed}
 
 
+def _daily_batch_allowed(capset) -> bool:
+    """批量日K拉取是否可用: TickFlow Pro+ 或当前日K路由到声明 daily 数据集的自定义源。"""
+    from app.tickflow.capabilities import Cap
+    if capset.has(Cap.KLINE_DAILY_BATCH):
+        return True
+    from app.data_providers import custom as custom_sources
+    from app.services import preferences as _prefs
+    provider = _prefs.get_daily_data_provider()
+    return provider != "tickflow" and custom_sources.provider_has_dataset(provider, "daily")
+
+
 @router.post("/extend_history")
 async def extend_history(request: Request):
     """向前扩展历史日K数据 — 独立于盘后管道。
@@ -1690,9 +1701,8 @@ async def extend_history(request: Request):
         repo = request.app.state.repo
         capset = request.app.state.capabilities
 
-        from app.tickflow.capabilities import Cap
-        if not capset.has(Cap.KLINE_DAILY_BATCH):
-            raise HTTPException(status_code=403, detail="需要 Pro+ 权限 (batch K-line)")
+        if not _daily_batch_allowed(capset):
+            raise HTTPException(status_code=403, detail="需要 Pro+ 权限 (batch K-line) 或配置支持日K的自定义数据源")
 
         from app.api.data import invalidate_storage_cache
         from app.services.extend_history import run_extend_history
@@ -1777,9 +1787,8 @@ async def repair_daily(request: Request):
         repo = request.app.state.repo
         capset = request.app.state.capabilities
 
-        from app.tickflow.capabilities import Cap
-        if not capset.has(Cap.KLINE_DAILY_BATCH):
-            raise HTTPException(status_code=403, detail="需要 Pro+ 权限 (batch K-line)")
+        if not _daily_batch_allowed(capset):
+            raise HTTPException(status_code=403, detail="需要 Pro+ 权限 (batch K-line) 或配置支持日K的自定义数据源")
 
         from app.api.data import invalidate_storage_cache
         from app.services.pipeline_jobs import (

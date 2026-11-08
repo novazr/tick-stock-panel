@@ -39,6 +39,8 @@ import './grid.css'
 import { X } from 'lucide-react'
 import { cn } from '@/lib/cn'
 import { GRID_COLS, GRID_MARGIN, GRID_ROW_HEIGHT, compactLayout, normalizeLayout, type DashboardItem } from './layout'
+import { useSettings } from '@/lib/useSharedQueries'
+import { isAvailableInMarket } from '@/lib/market-palette'
 import { DEFAULT_LAYOUT, isKnownWidgetType, minSizeOf, widgetDef } from './registry'
 import type { WidgetCtx } from './registry'
 
@@ -54,8 +56,20 @@ export interface DashboardGridProps {
   editing: boolean
 }
 
-export function DashboardGrid({ ctx, items, onItemsChange, editing }: DashboardGridProps) {
+export function DashboardGrid({ ctx, items: allItems, onItemsChange: persistItems, editing }: DashboardGridProps) {
   const { width, containerRef, mounted } = useContainerWidth({ measureBeforeMount: true })
+  // 美股实例隐藏 A 股专属组件 (涨停梯队/概念行业热度); 仅渲染层过滤, 保存时原样续接隐藏项
+  const market = useSettings().data?.market
+  const items = useMemo(
+    () => allItems.filter(it => isAvailableInMarket('widget', it.t, market)),
+    [allItems, market],
+  )
+  const onItemsChange = useCallback((next: DashboardItem[]) => {
+    const hidden = allItems.filter(it => !isAvailableInMarket('widget', it.t, market))
+    if (!hidden.length) { persistItems(next); return }
+    const bottom = next.reduce((m, it) => Math.max(m, it.y + it.h), 0)
+    persistItems([...next, ...hidden.map(it => ({ ...it, y: bottom + it.y }))])
+  }, [allItems, market, persistItems])
 
   const rglLayout = useMemo(
     () => items.map(it => {

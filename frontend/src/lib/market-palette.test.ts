@@ -40,3 +40,16 @@ describe('market palette', () => {
     expect(document.documentElement.dataset.market).toBe('cn')
   })
 })
+
+describe('market availability', () => {
+  it('美股隐藏 A 股专属组件和页面', async () => {
+    const { isAvailableInMarket, volumeDisplay } = await import('./market-palette')
+    expect(isAvailableInMarket('widget', 'ladder', 'us')).toBe(false)
+    expect(isAvailableInMarket('widget', 'gainers', 'us')).toBe(true)
+    expect(isAvailableInMarket('widget', 'ladder', 'cn')).toBe(true)
+    expect(isAvailableInMarket('nav', '/limit-ladder', 'us')).toBe(false)
+    expect(isAvailableInMarket('nav', '/watchlist', 'us')).toBe(true)
+    expect(volumeDisplay('us')).toEqual({ multiplier: 100, unit: '股' })
+    expect(volumeDisplay('cn')).toEqual({ multiplier: 1, unit: '' })
+  })
+})

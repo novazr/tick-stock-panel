@@ -85,8 +85,25 @@ def test_raw_daily_rows_restore_pre_split_prices_and_convert_volume_to_hands():
     # 拆股当日及之后: 已是拆股后口径, 原样
     assert by_day[date(2020, 8, 31)]["close"] == pytest.approx(129.0)
     assert by_day[date(2020, 8, 31)]["volume"] == 9000.0
-    # 成交额不伪造
-    assert all(r["amount"] is None for r in rows)
+
+
+def test_amount_is_estimated_from_raw_shares_and_typical_price():
+    """Yahoo 无成交额: 用原始股数 × 典型价 (H+L+C)/3 估算, 单位为美元 (与价格同币种)。"""
+    day = {r["date"]: r for r in yp.raw_daily_rows(_split_chart())}[date(2020, 8, 31)]
+    typical = (day["high"] + day["low"] + day["close"]) / 3
+    assert day["amount"] == pytest.approx(900_000.0 * typical)
+    pre = {r["date"]: r for r in yp.raw_daily_rows(_split_chart())}[date(2020, 8, 28)]
+    # 拆股前: 原始股数 = 400000 / 4 = 100000, 原始价 × 4, 金额与拆股调整口径一致
+    pre_typical = (pre["high"] + pre["low"] + pre["close"]) / 3
+    assert pre["amount"] == pytest.approx(100_000.0 * pre_typical)
+    assert pre["amount"] == pytest.approx(400_000.0 * pre_typical / 4)
+
+
+def test_amount_is_null_when_volume_missing():
+    chart = _split_chart()
+    chart.bars[0]["volume"] = None
+    rows = yp.raw_daily_rows(chart)
+    assert rows[0]["amount"] is None
 
 
 def test_volume_hands_are_floored():

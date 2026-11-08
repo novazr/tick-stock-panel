@@ -72,7 +72,7 @@ import { toggleTheme, useTheme } from '@/lib/theme'
 import { setCurrentTotal as setAlertTotal, useUnreadAlerts } from '@/lib/monitorBadge'
 import { ExtensionSlot } from '@/extensions/ExtensionSlot'
 import { getFrontendExtensionNavigation } from '@/extensions/registry'
-import { applyMarket } from '@/lib/market-palette'
+import { applyMarket, isAvailableInMarket } from '@/lib/market-palette'
 
 // 品牌色 — 只用于 logo / brand 区域,不影响功能语义色
 const BRAND = '#8B5CF6'
@@ -645,7 +645,7 @@ export function Layout() {
     : [...allNav].sort((a, b) => compareByDefaultNav(a.to, b.to))
 
   const hiddenIds = new Set(prefs?.nav_hidden ?? [])
-  const visibleNavItems = navItems.filter(n => !hiddenIds.has(n.to) && !hiddenIds.has(n.to.replace(/^\/analysis\//, '')))
+  const visibleNavItems = navItems.filter(n => !hiddenIds.has(n.to) && !hiddenIds.has(n.to.replace(/^\/analysis\//, '')) && isAvailableInMarket('nav', n.to, settingsState?.market))
 
   // 新装用户一次性种子: 扩展域页面默认隐藏, 菜单设置里可逐个开启。
   // 老用户 (升级前已完成 onboarding) 只写标记不动偏好, 升级前后侧栏一致。

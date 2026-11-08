@@ -10,7 +10,8 @@
     原始价, 因此按日期还原: 原始价 = Yahoo 价 × 该日之后全部拆股比例之积, 原始股数 =
     Yahoo 股数 ÷ 同一乘积。复权一律交给 adj_factor + indicators.pipeline。
   - volume 契约为「手」(1 手 = 100 股): floor(原始股数 / 100)。
-  - amount: Yahoo 不提供成交额, 置 null, 不用价格 × 成交量伪造。
+  - amount: Yahoo 不提供成交额, 用「原始股数 × 典型价 (H+L+C)/3」估算, 币种同价格 (美元)。
+    大盘股误差通常在 1~2% 内, 足够成交额排序/放量判断; 缺 H/L 时退化为收盘价, 缺量则 null。
   - 日期: Yahoo 时间戳按 America/New_York 转为美东交易日。美股收盘 (16:00 ET) 前的当日
     K 线尚未定型, 不落盘。
   - ex_factor = 前收盘原始价 / 除权参考价, 参考价 = (P - D) / (1 + S), 与 A 股插件同一
@@ -93,15 +94,19 @@ def raw_daily_rows(chart: ChartData) -> list[dict]:
     for bar in chart.bars:
         factor = _split_factor_after(chart.splits, bar["date"])
         shares = bar["volume"] / factor if bar["volume"] is not None else None
+        high = None if bar["high"] is None else bar["high"] * factor
+        low = None if bar["low"] is None else bar["low"] * factor
+        close = bar["close"] * factor
+        typical = (high + low + close) / 3 if high is not None and low is not None else close
         rows.append({
             "symbol": chart.symbol,
             "date": bar["date"],
             "open": None if bar["open"] is None else bar["open"] * factor,
-            "high": None if bar["high"] is None else bar["high"] * factor,
-            "low": None if bar["low"] is None else bar["low"] * factor,
-            "close": bar["close"] * factor,
+            "high": high,
+            "low": low,
+            "close": close,
             "volume": None if shares is None else float(math.floor(shares / 100.0)),
-            "amount": None,
+            "amount": None if shares is None else shares * typical,
         })
     return rows
 

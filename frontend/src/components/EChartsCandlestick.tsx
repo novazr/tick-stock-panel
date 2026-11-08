@@ -7,7 +7,7 @@ import type { ECharts, EChartsOption } from 'echarts'
 import type { OHLC, ChartMarker, ChartRange, ChartPriceLine, VolumeCompareConfig, DailyChartProps } from '@/lib/chart-types'
 export type { OHLC, ChartMarker, ChartRange, ChartPriceLine, StockInfo, VolumeCompareConfig } from '@/lib/chart-types'
 import { volMaN, volumeRatioAt, SUB_CHART_META } from '@/lib/chart-indicators'
-import { marketPalette } from '@/lib/market-palette'
+import { marketPalette, volumeDisplay } from '@/lib/market-palette'
 
 interface SubChartContext {
   compact: boolean
@@ -31,9 +31,12 @@ export interface SubChartDef {
 // ===== 成交量 N 日均量 =====
 function fmtVol(v: number | null | undefined): string {
   if (v == null) return '—'
-  if (v >= 1e8) return (v / 1e8).toFixed(2) + '亿'
-  if (v >= 1e4) return (v / 1e4).toFixed(0) + '万'
-  return v.toFixed(0)
+  // 内部契约为「手」; 美股实例换算成「股」展示
+  const { multiplier, unit } = volumeDisplay()
+  v = v * multiplier
+  if (v >= 1e8) return (v / 1e8).toFixed(2) + '亿' + unit
+  if (v >= 1e4) return (v / 1e4).toFixed(0) + '万' + unit
+  return v.toFixed(0) + unit
 }
 
 function fmtVolumeRatio(value: number | null, digits = 2): string {
@@ -700,6 +703,8 @@ function buildOption(
       axisLabel: {
         show: true, color: CT().text, fontSize: 9,
         fontFamily: 'JetBrains Mono, monospace',
+        // 成交量轴与信息栏同口径 (美股按「股」换算)
+        ...(def.key === 'vol' ? { formatter: (v: number) => (v === 0 ? '0' : fmtVol(v)) } : {}),
       },
     })
 

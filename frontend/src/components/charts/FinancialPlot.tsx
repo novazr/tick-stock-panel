@@ -8,7 +8,14 @@ import { formatAxisPercent } from '@/lib/intraday-scale'
 import { intradayTimeLabel, timeKey, type PlotSeries, type PlotData } from '@/lib/lightweight-model'
 import { axisLabelCoordinate, ChartAnnotations, type AnnotationData } from './ChartAnnotations'
 import { DailyVolumeSeries } from './DailyVolumeSeries'
-import { marketPalette } from '@/lib/market-palette'
+import { marketPalette, volumeDisplay } from '@/lib/market-palette'
+
+/** 成交量轴: 内部「手」, 美股换算为「股」(与信息栏同口径)。 */
+function fmtVolumeAxis(v: number): string {
+  if (v === 0) return '0'
+  const { multiplier, unit } = volumeDisplay()
+  return fmtBigNum(v * multiplier) + unit
+}
 
 const PRICE_MARGINS = { daily: { top: 0.08, bottom: 0.06 }, intraday: { top: 0, bottom: 0 } }
 const markersForView = (markers: SeriesMarker<Time>[] = [], compact: boolean) => compact
@@ -216,7 +223,7 @@ export function FinancialPlot(props: Props) {
       const options = { ...(spec.color ? { color: spec.color } : {}), lineWidth: spec.lineWidth ?? 1, lastValueVisible: false, priceLineVisible: false,
         ...(spec.priceScaleId ? { priceScaleId: spec.priceScaleId, lineVisible: false } : {}),
         crosshairMarkerVisible: false, visible: spec.visible ?? true,
-        priceFormat: spec.priceFormat === 'volume' ? { type: 'custom' as const, formatter: fmtBigNum, minMove: 1 }
+        priceFormat: spec.priceFormat === 'volume' ? { type: 'custom' as const, formatter: fmtVolumeAxis, minMove: 1 }
           : props.intraday && spec.pane === 0 ? {
             type: 'custom' as const, minMove: 10 ** -(props.pricePrecision ?? 2),
             formatter: spec.priceFormat === 'percent' ? formatAxisPercent : (value: number) => value.toFixed(props.pricePrecision ?? 2),

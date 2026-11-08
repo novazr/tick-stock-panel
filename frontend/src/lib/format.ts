@@ -1,3 +1,4 @@
+import { volumeDisplay } from './market-palette'
 // 数字 / 价格 / 涨跌幅 格式化(§6.0.2 等宽数字)
 
 export function fmtPrice(v: number | null | undefined, digits = 2): string {
@@ -31,11 +32,14 @@ export function fmtPct(v: number | null | undefined, digits = 2): string {
 
 export function fmtVolume(v: number | null | undefined): string {
   if (v == null || Number.isNaN(v)) return '—'
+  // 内部契约为「手」; 美股实例换算成「股」展示
+  const { multiplier, unit } = volumeDisplay()
+  v = v * multiplier
   const sign = v < 0 ? '-' : ''
   const a = Math.abs(v)
-  if (a >= 1e8) return `${sign}${(a / 1e8).toFixed(2)}亿`
-  if (a >= 1e4) return `${sign}${(a / 1e4).toFixed(2)}万`
-  return v.toFixed(0)
+  if (a >= 1e8) return `${sign}${(a / 1e8).toFixed(2)}亿${unit}`
+  if (a >= 1e4) return `${sign}${(a / 1e4).toFixed(2)}万${unit}`
+  return `${v.toFixed(0)}${unit}`
 }
 
 // A 股语义色:红涨绿跌 → 仅用于价格相关元素

@@ -75,3 +75,22 @@ export function restoreMarket(): void {
   }
   if (cached === 'us' || cached === 'cn') applyMarket(cached)
 }
+
+/** 仅适用于 A 股的看板组件 (涨停/连板/概念行业热度依赖 A 股涨跌停与板块数据)。 */
+export const CN_ONLY_WIDGETS: ReadonlySet<string> = new Set(['ladder', 'concept-rank', 'industry-rank'])
+
+/** 仅适用于 A 股的侧栏页面;美股实例渲染时隐藏,不改动用户保存的 nav_hidden。 */
+export const CN_ONLY_NAV_PATHS: ReadonlySet<string> = new Set(['/limit-ladder', '/concept-analysis', '/industry-analysis'])
+
+export function isAvailableInMarket(kind: 'widget' | 'nav', id: string, market: MarketCode | null | undefined): boolean {
+  if (market !== 'us') return true
+  return !(kind === 'widget' ? CN_ONLY_WIDGETS : CN_ONLY_NAV_PATHS).has(id)
+}
+
+/**
+ * 成交量展示:内部契约为「手」(100 股)。美股按「股」展示,
+ * 返回需乘的倍数与单位后缀。
+ */
+export function volumeDisplay(market: MarketCode | null | undefined = currentMarket()): { multiplier: number; unit: string } {
+  return market === 'us' ? { multiplier: 100, unit: '股' } : { multiplier: 1, unit: '' }
+}
