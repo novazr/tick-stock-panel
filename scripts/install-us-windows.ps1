@@ -96,7 +96,37 @@ if ($HasGit -and (Test-Path (Join-Path $Target '.git'))) {
 }
 Ok '代码已是最新'
 
-# ===== 3. 启动 (新窗口, 保持打开) =====
+# ===== 3. 依赖 (在本窗口安装, 能看到进度) =====
+# 后端固定 Python 3.13 (backend/.python-version): 更新的 3.15 缺少部分包的预编译版本,
+# 会退化为本机源码编译而卡住。旧的或不完整的环境直接删掉重建。
+$Backend  = Join-Path $Target 'backend'
+$Frontend = Join-Path $Target 'frontend'
+$venv = Join-Path $Backend '.venv'
+$cfg  = Join-Path $venv 'pyvenv.cfg'
+if (Test-Path $venv) {
+    $okVenv = (Test-Path $cfg) -and ((Get-Content $cfg -Raw) -match 'version_info = 3\.13') -and
+              (Test-Path (Join-Path $venv 'Lib\site-packages\fastapi'))
+    if (-not $okVenv) {
+        Warn '发现不完整或版本不对的 Python 环境, 删除后重建'
+        Get-Process python, uv -ErrorAction SilentlyContinue | Where-Object { $_.Path -like "$Target*" } | Stop-Process -Force -ErrorAction SilentlyContinue
+        Remove-Item $venv -Recurse -Force
+    }
+}
+Say '安装后端依赖 (Python 3.13, 首次约 2~5 分钟) ...'
+Push-Location $Backend
+try { uv sync --frozen --python 3.13 | Out-Host } finally { Pop-Location }
+if ($LASTEXITCODE -ne 0) { throw '后端依赖安装失败, 请把本窗口截图发给 Claude' }
+Ok '后端依赖已就绪'
+
+if (-not (Test-Path (Join-Path $Frontend 'node_modules\.modules.yaml'))) {
+    Say '安装网页依赖 (约 1~3 分钟) ...'
+    Push-Location $Frontend
+    try { pnpm install --frozen-lockfile | Out-Host } finally { Pop-Location }
+    if ($LASTEXITCODE -ne 0) { throw '网页依赖安装失败, 请把本窗口截图发给 Claude' }
+}
+Ok '网页依赖已就绪'
+
+# ===== 4. 启动 (新窗口, 保持打开) =====
 $running = $false
 try { Invoke-RestMethod "$Api/api/settings" -TimeoutSec 3 | Out-Null; $running = $true } catch {}
 if ($running) {
@@ -122,7 +152,7 @@ for ($i = 0; $i -lt 180; $i++) {
 if (-not $ready) { throw '15 分钟内后端没有启动, 请把另一个窗口里的报错截图发给 Claude' }
 Ok '后端已启动'
 
-# ===== 4. 首次配置 =====
+# ===== 5. 首次配置 =====
 $json = 'application/json; charset=utf-8'
 if ($settings.market -ne 'us') {
     Say '数据源切换到 Yahoo 美股'
@@ -148,7 +178,7 @@ if (-not $overview -or -not $overview.as_of) {
     Invoke-RestMethod "$Api/api/pipeline/run" -Method Post -ContentType $json -Body '{}' | Out-Null
 }
 
-# ===== 5. 打开网站 =====
+# ===== 6. 打开网站 =====
 Say '等待前端就绪 ...'
 for ($i = 0; $i -lt 120; $i++) {
     try { Invoke-WebRequest $Web -UseBasicParsing -TimeoutSec 3 | Out-Null; break } catch { Start-Sleep -Seconds 5 }
