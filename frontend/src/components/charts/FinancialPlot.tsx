@@ -8,6 +8,7 @@ import { formatAxisPercent } from '@/lib/intraday-scale'
 import { intradayTimeLabel, timeKey, type PlotSeries, type PlotData } from '@/lib/lightweight-model'
 import { axisLabelCoordinate, ChartAnnotations, type AnnotationData } from './ChartAnnotations'
 import { DailyVolumeSeries } from './DailyVolumeSeries'
+import { marketPalette } from '@/lib/market-palette'
 
 const PRICE_MARGINS = { daily: { top: 0.08, bottom: 0.06 }, intraday: { top: 0, bottom: 0 } }
 const markersForView = (markers: SeriesMarker<Time>[] = [], compact: boolean) => compact
@@ -240,7 +241,7 @@ export function FinancialPlot(props: Props) {
           topLineColor: spec.color, bottomLineColor: spec.color, relativeGradient: false,
           topFillColor1: 'rgba(199,64,64,0.32)', topFillColor2: 'rgba(199,64,64,0.02)',
           bottomFillColor1: 'rgba(45,155,101,0.02)', bottomFillColor2: 'rgba(45,155,101,0.32)' } : {}),
-        ...(spec.type === 'Candlestick' ? { upColor: '#C74040', downColor: '#2D9B65', borderVisible: false, wickUpColor: '#C74040', wickDownColor: '#2D9B65' } : {}),
+        ...(spec.type === 'Candlestick' ? { upColor: marketPalette().bullMuted, downColor: marketPalette().bearMuted, borderVisible: false, wickUpColor: marketPalette().bullMuted, wickDownColor: marketPalette().bearMuted } : {}),
         ...(spec.range ? { autoscaleInfoProvider: () => ({ priceRange: { minValue: spec.range!.min, maxValue: spec.range!.max } }) } : { autoscaleInfoProvider: undefined }),
       }
       let item = seriesRef.current.get(spec.id)

@@ -468,7 +468,7 @@ export function StockPreviewDialogContent({ symbol, name, onClose, triggerInfo, 
                     <span className="text-[11px] font-mono text-foreground/80">{fmtAssetPrice(triggerInfo.price, assetType)}</span>
                   )}
                   {triggerInfo.changePct != null && (
-                    <span className={`text-[11px] font-mono font-medium ${triggerInfo.changePct >= 0 ? 'text-danger' : 'text-bear'}`}>
+                    <span className={`text-[11px] font-mono font-medium ${triggerInfo.changePct >= 0 ? 'text-bull' : 'text-bear'}`}>
                       {triggerInfo.changePct >= 0 ? '+' : ''}{(triggerInfo.changePct * 100).toFixed(2)}%
                     </span>
                   )}

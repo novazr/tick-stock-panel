@@ -5,6 +5,7 @@
  * 调用方传 rows 时必须用共享空数组常量 (EMPTY_ROWS), 不要 `?? []` 新建引用。 */
 import { memo } from 'react'
 import type { KlineRow } from '@/lib/api'
+import { marketPalette } from '@/lib/market-palette'
 
 export const MiniCandlestick = memo(function MiniCandlestick({ rows, width = 100, height = 80, volume = false }: { rows: KlineRow[]; width?: number; height?: number; volume?: boolean }) {
   // 空数据：返回等尺寸占位（不画内容），保证 kline 加载前后单元格尺寸一致、不闪烁
@@ -12,8 +13,8 @@ export const MiniCandlestick = memo(function MiniCandlestick({ rows, width = 100
     return <svg width={width} height={height} viewBox={`0 0 ${width} ${height}`} className="block" aria-label="加载中" />
   }
 
-  const BULL = '#C74040'
-  const BEAR = '#2D9B65'
+  const BULL = marketPalette().bullMuted
+  const BEAR = marketPalette().bearMuted
   const NEUTRAL = '#A1A1AA'
   const LINE_PREV_CLOSE = '#7A7A85'
 

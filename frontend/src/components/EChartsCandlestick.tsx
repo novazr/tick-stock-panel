@@ -7,6 +7,7 @@ import type { ECharts, EChartsOption } from 'echarts'
 import type { OHLC, ChartMarker, ChartRange, ChartPriceLine, VolumeCompareConfig, DailyChartProps } from '@/lib/chart-types'
 export type { OHLC, ChartMarker, ChartRange, ChartPriceLine, StockInfo, VolumeCompareConfig } from '@/lib/chart-types'
 import { volMaN, volumeRatioAt, SUB_CHART_META } from '@/lib/chart-indicators'
+import { marketPalette } from '@/lib/market-palette'
 
 interface SubChartContext {
   compact: boolean
@@ -95,7 +96,7 @@ export const SUB_CHARTS: SubChartDef[] = [
     buildInfo: (d) => {
       if (!d) return []
       return [
-        { label: '量', color: d.close >= d.open ? '#C74040' : '#2D9B65', value: fmtVol(d.volume) },
+        { label: '量', color: d.close >= d.open ? marketPalette().bullMuted : marketPalette().bearMuted, value: fmtVol(d.volume) },
       ]
     },
   },
@@ -138,7 +139,7 @@ export const SUB_CHARTS: SubChartDef[] = [
       return [
         { label: 'DIF', color: '#FACC15', value: d.macd_dif != null ? d.macd_dif.toFixed(3) : '—' },
         { label: 'DEA', color: '#8B5CF6', value: d.macd_dea != null ? d.macd_dea.toFixed(3) : '—' },
-        { label: 'MACD', color: d.macd_hist != null && d.macd_hist >= 0 ? '#C74040' : '#2D9B65', value: d.macd_hist != null ? d.macd_hist.toFixed(3) : '—' },
+        { label: 'MACD', color: d.macd_hist != null && d.macd_hist >= 0 ? marketPalette().bullMuted : marketPalette().bearMuted, value: d.macd_hist != null ? d.macd_hist.toFixed(3) : '—' },
       ]
     },
   },
@@ -229,10 +230,10 @@ type Props = DailyChartProps
 
 // 序列颜色 (双主题通用); 画布轴/网格/文字等主题相关色走 CT() 动态取
 const THEME = {
-  bull: '#C74040',
-  bear: '#2D9B65',
-  bullAlpha: 'rgba(240,68,56,0.7)',
-  bearAlpha: 'rgba(18,183,106,0.7)',
+  get bull() { return marketPalette().bullMuted },
+  get bear() { return marketPalette().bearMuted },
+  get bullAlpha() { return marketPalette().bullAlpha(0.7) },
+  get bearAlpha() { return marketPalette().bearAlpha(0.7) },
   ma5: '#A1A1AA',
   ma10: '#3B82F6',
   ma20: '#F97316',
@@ -285,7 +286,7 @@ function buildSubInfoGraphics(
         const ratio = volumeRatioAt(data, infoIdx, volumeCompare.days)
         items.push({
           label: `量比${volumeCompare.days}`,
-          color: ratio != null && ratio >= 1 ? '#C74040' : '#2D9B65',
+          color: ratio != null && ratio >= 1 ? marketPalette().bullMuted : marketPalette().bearMuted,
           value: fmtVolumeRatio(ratio),
         })
       }

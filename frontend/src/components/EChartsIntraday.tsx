@@ -6,6 +6,7 @@ import { computeIntradayAverage, formatMinuteTime, FULL_DAY_TIMES, summarizeMinu
 import { useChartTheme, type ChartTheme } from '@/lib/theme'
 import { pricePrecision } from '@/lib/format'
 import { intradayScale } from '@/lib/intraday-scale'
+import { marketPalette } from '@/lib/market-palette'
 
 type YMode = 'adaptive' | 'limit'
 
@@ -14,8 +15,8 @@ const THEME = {
   line: '#3B82F6',
   areaFill: 'rgba(59,130,246,0.40)',
   avgLine: '#F59E0B',
-  volUp: 'rgba(240,68,56,0.6)',
-  volDown: 'rgba(18,183,106,0.6)',
+  get volUp() { return marketPalette().bullAlpha(0.6) },
+  get volDown() { return marketPalette().bearAlpha(0.6) },
 }
 
 interface Props {
@@ -380,8 +381,8 @@ export function EChartsIntraday({
   const lastClose = data.length > 0 ? data[data.length - 1].close : null
   const lineIsUp = lastClose != null && prevClose != null ? lastClose > prevClose : true
   const lineIsFlat = lastClose != null && prevClose != null ? lastClose === prevClose : false
-  const lineColor = lineIsFlat ? '#A1A1AA' : lineIsUp ? '#C74040' : '#2D9B65'
-  const areaFill = lineIsFlat ? 'rgba(180,180,190,0.40)' : lineIsUp ? 'rgba(199,64,64,0.40)' : 'rgba(34,197,94,0.40)'
+  const lineColor = lineIsFlat ? '#A1A1AA' : lineIsUp ? marketPalette().bullMuted : marketPalette().bearMuted
+  const areaFill = lineIsFlat ? 'rgba(180,180,190,0.40)' : lineIsUp ? marketPalette().bullAlpha(0.4) : marketPalette().bearAlpha(0.4)
 
   useEffect(() => {
     setInfoIdx(-1)
@@ -496,7 +497,7 @@ export function EChartsIntraday({
   const chg = d && prevClose != null ? d.close - prevClose : null
   const isUp = chg != null ? chg > 0 : true
   const isFlat = chg != null ? chg === 0 : false
-  const priceClr = isFlat ? '#A1A1AA' : isUp ? '#C74040' : '#2D9B65'
+  const priceClr = isFlat ? '#A1A1AA' : isUp ? marketPalette().bullMuted : marketPalette().bearMuted
 
   return (
     <div className="w-full">

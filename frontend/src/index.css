@@ -43,6 +43,13 @@ html.dark {
   --danger: 4 87% 60%;
 }
 
+/* 美股实例:绿涨红跌 (Layout 依据 /api/settings 的 market 写入 data-market) */
+html[data-market="us"],
+html.dark[data-market="us"] {
+  --bull: 152 67% 45%;       /* #12B76A 绿涨 */
+  --bear: 4 87% 60%;         /* #F04438 红跌 */
+}
+
 /* 价格 / 数字一律等宽 */
 .scrollbar-gutter-stable { scrollbar-gutter: stable; }
 

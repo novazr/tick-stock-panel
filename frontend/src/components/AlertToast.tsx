@@ -173,7 +173,7 @@ export function AlertToastContainer() {
                 {ev.symbol && <span className="font-mono text-xs font-medium text-foreground shrink-0">{ev.symbol}</span>}
                 {ev.name && <span className="text-xs text-secondary truncate flex-1">{ev.name}</span>}
                 {ev.change_pct != null && (
-                  <span className={cn('inline-flex items-center gap-0.5 text-[10px] font-mono font-medium shrink-0', pct >= 0 ? 'text-danger' : 'text-bear')}>
+                  <span className={cn('inline-flex items-center gap-0.5 text-[10px] font-mono font-medium shrink-0', pct >= 0 ? 'text-bull' : 'text-bear')}>
                     {pct >= 0 ? <TrendingUp className="h-2.5 w-2.5" /> : <TrendingDown className="h-2.5 w-2.5" />}
                     {fmtPct(pct)}
                   </span>

@@ -10,6 +10,7 @@ import {
   type HistogramData,
 } from 'lightweight-charts'
 import { useChartTheme } from '@/lib/theme'
+import { marketPalette } from '@/lib/market-palette'
 
 export interface OHLC {
   date: string
@@ -28,12 +29,13 @@ export function fmtBigNum(v: number): string {
 }
 
 // 序列颜色 (双主题通用); 画布文字/网格/边框主题相关色走 ChartTheme
+// 涨跌色随实例市场 (A 股红涨 / 美股绿涨),用 getter 在渲染时取值
 const THEME = {
   background: 'transparent',
-  bull: '#F04438',
-  bear: '#12B76A',
-  volBull: 'rgba(240,68,56,0.4)',
-  volBear: 'rgba(18,183,106,0.4)',
+  get bull() { return marketPalette().bull },
+  get bear() { return marketPalette().bear },
+  get volBull() { return marketPalette().bullAlpha(0.4) },
+  get volBear() { return marketPalette().bearAlpha(0.4) },
 }
 
 interface Props {

@@ -28,6 +28,7 @@ import '@fontsource/jetbrains-mono/500.css'
 import '@fontsource/jetbrains-mono/600.css'
 import '@fontsource/jetbrains-mono/700.css'
 import './index.css'
+import { restoreMarket } from '@/lib/market-palette'
 
 // 全局认证拦截: 任何 query/mutation 收到 401 (未登录/会话过期) → 跳登录页。
 // api.ts 的 request() 已对 401 静默 (不弹 toast), 这里统一负责跳转。
@@ -82,6 +83,7 @@ async function bootstrap() {
   // 运行时页面插件: 必须在 router 模块求值(finalize + 建路由表)之前挂载
   await loadRuntimePageExtensions()
   const { router } = await import('./router')
+  restoreMarket()
   ReactDOM.createRoot(document.getElementById('root')!).render(
     <React.StrictMode>
       <PersistQueryClientProvider

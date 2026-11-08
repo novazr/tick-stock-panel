@@ -6,14 +6,15 @@ import { computeIntradayAverage, formatMinuteTime, FULL_DAY_TIMES } from '@/lib/
 import { useChartTheme } from '@/lib/theme'
 import { pricePrecision } from '@/lib/format'
 import { intradayScale } from '@/lib/intraday-scale'
+import { marketPalette } from '@/lib/market-palette'
 
 const COLORS = {
-  up: '#C74040',
-  down: '#2D9B65',
+  get up() { return marketPalette().bullMuted },
+  get down() { return marketPalette().bearMuted },
   flat: '#A1A1AA',
   average: '#F59E0B',
-  volumeUp: 'rgba(240,68,56,0.58)',
-  volumeDown: 'rgba(18,183,106,0.58)',
+  get volumeUp() { return marketPalette().bullAlpha(0.58) },
+  get volumeDown() { return marketPalette().bearAlpha(0.58) },
   volumeFlat: 'rgba(161,161,170,0.45)',
 }
 

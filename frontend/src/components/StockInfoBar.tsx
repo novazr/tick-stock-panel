@@ -8,9 +8,8 @@ import { WatchlistAddMenu } from '@/components/WatchlistAddMenu'
 import { INFO_GROUPS, type ColumnConfig } from '@/lib/stock-info-fields'
 import { storage } from '@/lib/storage'
 import { buildStockExternalUrl, loadStockExternalTemplate } from '@/lib/stock-external-link'
+import { marketPalette } from '@/lib/market-palette'
 
-const BULL = '#C74040'
-const BEAR = '#2D9B65'
 
 interface Props {
   freshness?: QuoteFreshness | null
@@ -169,7 +168,7 @@ export function StockInfoBar({
   const chg = prev ? close - Number(prev.close) : 0
   const chgPct = prev ? chg / Number(prev.close) * 100 : 0
   const isUp = chg >= 0
-  const clr = isUp ? BULL : BEAR
+  const clr = isUp ? marketPalette().bullMuted : marketPalette().bearMuted
 
   const totalShares = stockInfo?.total_shares
   const floatShares = stockInfo?.float_shares

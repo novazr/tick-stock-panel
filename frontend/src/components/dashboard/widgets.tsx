@@ -439,7 +439,7 @@ export function MonitorWidget({ onStockClick, activeSymbol }: {
                   <span className="text-[10px] font-mono text-foreground/60 shrink-0">{fmtPrice(ev.price)}</span>
                 )}
                 {ev.change_pct != null && (
-                  <span className={cn('text-[10px] font-mono font-medium shrink-0 w-12 text-right', pct >= 0 ? 'text-danger' : 'text-bear')}>
+                  <span className={cn('text-[10px] font-mono font-medium shrink-0 w-12 text-right', pct >= 0 ? 'text-bull' : 'text-bear')}>
                     {fmtPct(pct)}
                   </span>
                 )}

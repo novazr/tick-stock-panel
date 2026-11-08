@@ -1,5 +1,6 @@
 import type { MonitorRule } from '@/lib/api'
 import { fmtAssetPrice } from '@/lib/format'
+import { marketPalette } from './market-palette'
 
 export type PriceAlertDirection = 'up' | 'down'
 
@@ -61,7 +62,7 @@ export function buildMonitorPriceLines(rules: MonitorRule[], symbol: string): Mo
     return [{
       value: alert.target,
       label: `${isUp ? '上穿' : '下穿'} ${fmtAssetPrice(alert.target, rule.asset_type)}`,
-      color: isUp ? '#C74040' : '#2D9B65',
+      color: isUp ? marketPalette().bullMuted : marketPalette().bearMuted,
     }]
   })
 }

@@ -2,8 +2,12 @@ import type { Time, UTCTimestamp, CandlestickData, LineData, HistogramData, Whit
 import type { MinuteKlineSession } from './api'
 import type { OHLC } from './chart-types'
 import { computeIntradayAverage, formatMinuteTime, FULL_DAY_TIMES } from './intraday-chart'
+import { marketPalette } from './market-palette'
 
-export const CHART_COLORS = { up: '#C74040', down: '#2D9B65', flat: '#A1A1AA', average: '#F59E0B', blue: '#3B82F6', purple: '#8B5CF6' }
+export const CHART_COLORS = {
+  get up() { return marketPalette().bullMuted },
+  get down() { return marketPalette().bearMuted },
+  flat: '#A1A1AA', average: '#F59E0B', blue: '#3B82F6', purple: '#8B5CF6' }
 const SESSION_TIMES = new Set(FULL_DAY_TIMES)
 // 午休不占用交易时间：11:30 / 13:00 共用中点，下一格直接进入 13:01。
 const PLOT_DAY_TIMES = FULL_DAY_TIMES.filter(time => time !== '11:30')

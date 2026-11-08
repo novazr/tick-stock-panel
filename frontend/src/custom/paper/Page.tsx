@@ -28,6 +28,7 @@ import { PageHeader } from '@/components/PageHeader'
 import { Modal } from '@/components/Modal'
 import { StrategyExecutionPanel } from './StrategyExecutionPanel'
 import { executionApi, executionListKey } from './executionClient'
+import { marketPalette } from '@/lib/market-palette'
 
 const ORDER_TYPE_LABEL: Record<string, string> = {
   market: '即时',
@@ -1422,7 +1423,7 @@ function NavSpark({ nav }: { nav: Array<{ date: string; nav: number }> }) {
     .join(' ')
   return (
     <svg width={w} height={h} className="mx-auto block" aria-hidden>
-      <polyline points={d} fill="none" stroke={up ? '#F04438' : '#12B76A'} strokeWidth="1.5" strokeLinejoin="round" strokeLinecap="round" />
+      <polyline points={d} fill="none" stroke={up ? marketPalette().bull : marketPalette().bear} strokeWidth="1.5" strokeLinejoin="round" strokeLinecap="round" />
     </svg>
   )
 }

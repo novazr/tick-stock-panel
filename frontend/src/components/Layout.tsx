@@ -72,6 +72,7 @@ import { toggleTheme, useTheme } from '@/lib/theme'
 import { setCurrentTotal as setAlertTotal, useUnreadAlerts } from '@/lib/monitorBadge'
 import { ExtensionSlot } from '@/extensions/ExtensionSlot'
 import { getFrontendExtensionNavigation } from '@/extensions/registry'
+import { applyMarket } from '@/lib/market-palette'
 
 // 品牌色 — 只用于 logo / brand 区域,不影响功能语义色
 const BRAND = '#8B5CF6'
@@ -372,6 +373,9 @@ type NavState = 'expanded' | 'rail' | 'hidden'
 export function Layout() {
   // ===== 共享 hooks (替代内联 useQuery) =====
   const { data: settingsState } = useSettings()
+  useEffect(() => {
+    if (settingsState) applyMarket(settingsState.market)
+  }, [settingsState])
   const { data: matrix } = useCapabilityMatrix()
   const { data: versionData } = useVersion()
   // 更新检查 (单例 store): 启动静默查一次 GitHub Releases, 供左下角版本号徽标
