@@ -32,25 +32,28 @@ function Refresh-Path {
     $env:Path = "$machine;$user"
 }
 
-function Ensure-Tool($cmd, $wingetId, $label) {
-    if (Get-Command $cmd -ErrorAction SilentlyContinue) { Ok "$label 已安装"; return }
+function Ensure-Tool($cmd, $wingetId, $label, [switch]$Optional) {
+    if (Get-Command $cmd -ErrorAction SilentlyContinue) { Ok "$label 已安装"; return $true }
     if (-not (Get-Command winget -ErrorAction SilentlyContinue)) {
         throw "没有找到 winget, 请先从 Microsoft Store 安装「应用安装程序 (App Installer)」后重试"
     }
-    Say "安装 $label ..."
-    winget install --id $wingetId -e --silent --accept-package-agreements --accept-source-agreements
-    Refresh-Path
-    if (-not (Get-Command $cmd -ErrorAction SilentlyContinue)) {
-        throw "$label 安装后仍找不到 $cmd, 请关闭 PowerShell 重新打开后再运行一次本命令"
+    # 下载服务器偶发 504/超时: 最多重试 3 次
+    for ($attempt = 1; $attempt -le 3; $attempt++) {
+        Say "安装 $label (第 $attempt 次) ..."
+        winget install --id $wingetId -e --silent --source winget --accept-package-agreements --accept-source-agreements | Out-Host
+        Refresh-Path
+        if (Get-Command $cmd -ErrorAction SilentlyContinue) { Ok "$label 安装完成"; return $true }
+        if ($attempt -lt 3) { Warn "$label 下载失败, 15 秒后重试"; Start-Sleep -Seconds 15 }
     }
-    Ok "$label 安装完成"
+    if ($Optional) { Warn "$label 安装失败, 改用备用方式继续"; return $false }
+    throw "$label 连续 3 次下载失败 (多为网络问题)。请稍后重新运行本命令; 若一直失败, 把截图发给 Claude"
 }
 
 # ===== 1. 工具 =====
 Refresh-Path
-Ensure-Tool 'git'  'Git.Git'           'Git'
-Ensure-Tool 'node' 'OpenJS.NodeJS.LTS' 'Node.js'
-Ensure-Tool 'uv'   'astral-sh.uv'      'uv'
+$HasGit = Ensure-Tool 'git'  'Git.Git'           'Git' -Optional
+$null   = Ensure-Tool 'node' 'OpenJS.NodeJS.LTS' 'Node.js'
+$null   = Ensure-Tool 'uv'   'astral-sh.uv'      'uv'
 if (-not (Get-Command pnpm -ErrorAction SilentlyContinue)) {
     Say '安装 pnpm ...'
     npm install -g pnpm | Out-Null
@@ -61,14 +64,35 @@ if (-not (Get-Command pnpm -ErrorAction SilentlyContinue)) {
 Ok 'pnpm 已就绪'
 
 # ===== 2. 代码 =====
-if (Test-Path (Join-Path $Target '.git')) {
+function Get-CodeZip {
+    # 无 Git 时的备用方式: 下载分支压缩包解压覆盖 (保留目录里已有的数据等其他文件)
+    $zip = Join-Path $env:TEMP 'tsp-code.zip'
+    $tmp = Join-Path $env:TEMP 'tsp-code'
+    $url = "https://codeload.github.com/novazr/tick-stock-panel/zip/refs/heads/$Branch"
+    for ($attempt = 1; $attempt -le 3; $attempt++) {
+        try { Invoke-WebRequest $url -OutFile $zip -UseBasicParsing; break }
+        catch { if ($attempt -eq 3) { throw "代码下载失败: $_" }; Warn '代码下载失败, 15 秒后重试'; Start-Sleep -Seconds 15 }
+    }
+    if (Test-Path $tmp) { Remove-Item $tmp -Recurse -Force }
+    Expand-Archive $zip -DestinationPath $tmp -Force
+    $inner = Get-ChildItem $tmp -Directory | Select-Object -First 1
+    New-Item -ItemType Directory -Force -Path $Target | Out-Null
+    Copy-Item (Join-Path $inner.FullName '*') $Target -Recurse -Force
+    Remove-Item $tmp -Recurse -Force
+    Remove-Item $zip -Force
+}
+
+if ($HasGit -and (Test-Path (Join-Path $Target '.git'))) {
     Say "更新代码: $Target"
     git -C $Target fetch origin $Branch
     git -C $Target checkout $Branch
     git -C $Target pull --ff-only origin $Branch
-} else {
+} elseif ($HasGit -and -not (Test-Path $Target)) {
     Say "下载代码到: $Target"
     git clone -b $Branch $Repo $Target
+} else {
+    Say "下载代码压缩包到: $Target"
+    Get-CodeZip
 }
 Ok '代码已是最新'
 
