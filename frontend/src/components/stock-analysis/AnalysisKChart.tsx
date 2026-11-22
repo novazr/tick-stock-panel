@@ -3,6 +3,8 @@ import { useChartTheme } from '@/lib/theme'
 import { plotPaneHeights } from '@/lib/chart-layout'
 import { FinancialPlot } from '@/components/charts/FinancialPlot'
 import type { KlineRow, LevelSeries } from '@/lib/api'
+import { fmtBigNum, fmtPrice, fmtVolume, priceColorClass } from '@/lib/format'
+import { currentMarket } from '@/lib/market-palette'
 import {
   ANALYSIS_LABEL_BAND_PX,
   LEVEL_GROUPS,
@@ -50,6 +52,8 @@ interface Props {
   ranges?: ChartRange[]
   /** 预留:点击某根 K 线 */
   onDateClick?: (date: string) => void
+  /** 默认可见的 K 线根数; 'all' = 铺满全部已加载数据。缺省为最近约 6 个月 */
+  visibleBars?: number | 'all'
   /** 切换标的时重置视口/悬浮状态(通常传 symbol) */
   scopeKey?: string
   height?: number
@@ -68,6 +72,7 @@ export function AnalysisKChart({
   markers,
   ranges,
   onDateClick,
+  visibleBars = VISIBLE_BARS,
   scopeKey,
   height = 460,
   className,
@@ -77,16 +82,30 @@ export function AnalysisKChart({
   const [pivotRank, setPivotRank] = useState<1 | 2 | 3>(1)
   /** 双向联动高亮: mouse 悬浮价位/面板行。值为 levelKey 或曲线组 key, null=无高亮 */
   const [hoveredKey, setHoveredKey] = useState<string | null>(null)
+  /** 十字线所在交易日 (任意副图均生效); null=不显示行情浮窗 */
+  const [hoverDate, setHoverDate] = useState<string | null>(null)
+  /** 行情浮窗停靠侧: 指针在图表左半时靠右, 反之靠左, 避免盖住正在看的 K 线 */
+  const [cardSide, setCardSide] = useState<'left' | 'right'>('left')
 
   const model = useMemo(() => buildAnalysisChartModel({
     rows, levels, series, seriesDates, activeTypes, pivotRank, hoveredKey, markers, ranges,
   }), [rows, levels, series, seriesDates, activeTypes, pivotRank, hoveredKey, markers, ranges])
 
+  // 图表模型只保留 OHLCV; 成交额按日期从原始行取, 供行情浮窗展示
+  const amountByDate = useMemo(() => {
+    const map = new Map<string, number>()
+    for (const row of rows) {
+      const amount = Number(row.amount)
+      if (row.amount != null && Number.isFinite(amount)) map.set(String(row.date).slice(0, 10), amount)
+    }
+    return map
+  }, [rows])
+
   const paneHeights = useMemo(() => plotPaneHeights(height, 1), [height])
   const scope = `${scopeKey ?? ''}:${model.rows[0]?.date ?? ''}:${model.rows.length}`
 
   // 切股 / 区间变化后清掉上一份数据的悬浮高亮
-  useEffect(() => { setHoveredKey(null) }, [scope])
+  useEffect(() => { setHoveredKey(null); setHoverDate(null) }, [scope])
 
   // 关闭价位组后,被关掉的点位不应继续高亮
   useEffect(() => {
@@ -159,17 +178,26 @@ export function AnalysisKChart({
       )}
 
       {/* 图表:右侧预留带(rightOffsetPixels)显示价位/曲线标签,不压蜡烛 */}
+      <div
+        className="relative"
+        onMouseMove={event => {
+          const rect = event.currentTarget.getBoundingClientRect()
+          const next = event.clientX - rect.left < rect.width / 2 ? 'right' : 'left'
+          setCardSide(previous => previous === next ? previous : next)
+        }}
+      >
       <FinancialPlot
         scope={scope}
         series={model.series}
         height={height}
         paneHeights={paneHeights}
         pricePrecision={2}
-        visibleBars={VISIBLE_BARS}
+        visibleBars={visibleBars}
         rightOffsetPixels={ANALYSIS_LABEL_BAND_PX}
         annotations={model.annotations}
         paneTitles={['', '成交量']}
         onSelect={date => onDateClick?.(date)}
+        onHover={date => setHoverDate(previous => previous === date ? previous : date)}
         onCrosshairMove={point => {
           if (!point) { setHoveredKey(null); return }
           const index = model.dateIndex.get(point.time) ?? -1
@@ -177,6 +205,13 @@ export function AnalysisKChart({
           setHoveredKey(previous => previous === next ? previous : next)
         }}
       />
+      <QuoteHoverCard
+        rows={model.rows}
+        index={hoverDate == null ? -1 : model.dateIndex.get(hoverDate) ?? -1}
+        amount={hoverDate == null ? undefined : amountByDate.get(hoverDate)}
+        side={cardSide}
+      />
+      </div>
 
       {/* 价位统计面板:把当前开启的点位按"压力 / 支撑"结构化列出 */}
       {levels && (
@@ -189,6 +224,62 @@ export function AnalysisKChart({
           onHover={setHoveredKey}
         />
       )}
+    </div>
+  )
+}
+
+// ===== 行情浮窗(十字线所在交易日的开高低收/涨跌/量额) =====
+
+const WEEKDAYS = ['日', '一', '二', '三', '四', '五', '六']
+
+function weekdayLabel(date: string): string {
+  const [year, month, day] = date.slice(0, 10).split('-').map(Number)
+  if (!year || !month || !day) return ''
+  // 按日历日期取星期, 不经过时区换算
+  return `星期${WEEKDAYS[new Date(Date.UTC(year, month - 1, day)).getUTCDay()]}`
+}
+
+type QuoteRow = Pick<KlineRow, 'date' | 'open' | 'high' | 'low' | 'close' | 'volume'>
+
+function QuoteHoverCard({ rows, index, amount, side }: {
+  rows: QuoteRow[]
+  index: number
+  amount?: number
+  side: 'left' | 'right'
+}) {
+  const row = index >= 0 ? rows[index] : undefined
+  if (!row) return null
+  // 涨跌以前一交易日收盘为基准; 首根 K 线没有基准, 涨跌留空
+  const prevClose = index > 0 ? rows[index - 1].close : null
+  const change = prevClose != null ? row.close - prevClose : null
+  const changePct = change != null && prevClose ? change / prevClose * 100 : null
+  const vs = (value: number) => prevClose != null ? priceColorClass(value - prevClose) : 'text-foreground'
+  const signed = (value: number | null, suffix = '') =>
+    value == null ? '—' : `${value > 0 ? '+' : ''}${value.toFixed(2)}${suffix}`
+  const items: Array<[string, string, string]> = [
+    ['开盘', fmtPrice(row.open), vs(row.open)],
+    ['最高', fmtPrice(row.high), vs(row.high)],
+    ['最低', fmtPrice(row.low), vs(row.low)],
+    ['收盘', fmtPrice(row.close), vs(row.close)],
+    ['涨跌额', signed(change), priceColorClass(change)],
+    ['涨跌幅', signed(changePct, '%'), priceColorClass(change)],
+    ['成交量', fmtVolume(row.volume), 'text-foreground'],
+    // 美股数据源不提供成交额, 后端按均价估算, 这里如实标注
+    [currentMarket() === 'us' ? '成交额(估)' : '成交额', amount == null ? '—' : fmtBigNum(amount), 'text-foreground'],
+  ]
+  return (
+    <div
+      data-testid="quote-hover-card"
+      className="pointer-events-none absolute top-2 z-10 min-w-[168px] rounded-md border border-border bg-surface/95 px-2.5 py-2 text-xs shadow-lg"
+      style={side === 'left' ? { left: 8 } : { right: ANALYSIS_LABEL_BAND_PX + 72 }}
+    >
+      <div className="mb-1 font-mono font-semibold text-foreground">{row.date.slice(0, 10)} {weekdayLabel(row.date)}</div>
+      {items.map(([label, value, color]) => (
+        <div key={label} className="flex items-center justify-between gap-4 leading-5">
+          <span className="text-secondary">{label}</span>
+          <span className={`font-mono font-medium tabular-nums ${color}`}>{value}</span>
+        </div>
+      ))}
     </div>
   )
 }

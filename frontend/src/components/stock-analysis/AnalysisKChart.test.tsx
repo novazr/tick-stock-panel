@@ -106,3 +106,28 @@ it('forwards date clicks to the caller', async () => {
   await act(async () => lastPlot().onSelect('2026-10-30'))
   expect(onDateClick).toHaveBeenCalledWith('2026-10-30')
 })
+
+it('shows the hovered day quote card with change measured from the previous close', async () => {
+  await renderChart({ rows: rows.map(row => ({ ...row, amount: 123_400_000 })) })
+  expect(host.querySelector('[data-testid="quote-hover-card"]')).toBeNull()
+  await act(async () => lastPlot().onHover('2026-10-30'))
+  const card = host.querySelector('[data-testid="quote-hover-card"]')!
+  // 2026-10-30 收 11.5, 前收 10.5 → +1.00 / +9.52%
+  expect(card.textContent).toContain('2026-10-30 星期五')
+  expect(card.textContent).toContain('开盘11.00')
+  expect(card.textContent).toContain('收盘11.50')
+  expect(card.textContent).toContain('涨跌额+1.00')
+  expect(card.textContent).toContain('涨跌幅+9.52%')
+  expect(card.textContent).toContain('成交额1.23亿')
+  await act(async () => lastPlot().onHover(null))
+  expect(host.querySelector('[data-testid="quote-hover-card"]')).toBeNull()
+})
+
+it('leaves change blank on the first bar and amount blank when the source has none', async () => {
+  await renderChart()
+  await act(async () => lastPlot().onHover('2026-10-29'))
+  const text = host.querySelector('[data-testid="quote-hover-card"]')!.textContent!
+  expect(text).toContain('涨跌额—')
+  expect(text).toContain('涨跌幅—')
+  expect(text).toContain('成交额—')
+})
