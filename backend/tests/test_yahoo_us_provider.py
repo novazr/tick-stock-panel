@@ -330,3 +330,18 @@ def test_index_daily_serves_only_benchmarks():
                                      asset_type="index")
     assert df["symbol"].unique().to_list() == ["SPY"]
     assert [c[0] for c in client.calls] == ["SPY"]
+
+
+def test_index_daily_keeps_split_adjusted_prices_continuous():
+    """基准 ETF 走指数路径, 不应用除权因子: 不能还原成原始价, 否则拆股日出现断层。"""
+    chart = _split_chart()
+    chart.symbol = "QQQ"
+    client = _FakeClient({"QQQ": chart})
+    df = _provider(client).get_daily(["QQQ"], datetime(2020, 8, 27), datetime(2020, 9, 1),
+                                     asset_type="index").sort("date")
+    # Yahoo 口径原样保留: 125.0 → 124.8 → 129.0 → 134.0, 拆股日前后连续
+    assert df["close"].to_list() == [125.0, 124.8, 129.0, 134.0]
+    # 个股路径仍还原原始价 (拆股前 ×4), 由除权因子负责复权
+    stock = _provider(_FakeClient({"AAPL": _split_chart()})).get_daily(
+        ["AAPL"], datetime(2020, 8, 27), datetime(2020, 9, 1)).sort("date")
+    assert stock["close"].to_list() == [500.0, 499.2, 129.0, 134.0]

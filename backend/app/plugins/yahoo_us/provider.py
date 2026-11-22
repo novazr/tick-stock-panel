@@ -88,11 +88,15 @@ def _split_factor_after(splits: list[tuple[date, float]], day: date) -> float:
     return factor
 
 
-def raw_daily_rows(chart: ChartData) -> list[dict]:
-    """Yahoo 拆股调整口径 → 原始价、手。"""
+def raw_daily_rows(chart: ChartData, restore_raw: bool = True) -> list[dict]:
+    """Yahoo 拆股调整口径 → 原始价、手。
+
+    restore_raw=False 时保留 Yahoo 的拆股调整价 (不还原): 基准 ETF 走指数路径,
+    该路径不应用除权因子, 还原成原始价会在拆股日留下价格断层 (如 QQQ 2000-03 的 2:1)。
+    """
     rows = []
     for bar in chart.bars:
-        factor = _split_factor_after(chart.splits, bar["date"])
+        factor = _split_factor_after(chart.splits, bar["date"]) if restore_raw else 1.0
         shares = bar["volume"] / factor if bar["volume"] is not None else None
         high = None if bar["high"] is None else bar["high"] * factor
         low = None if bar["low"] is None else bar["low"] * factor
@@ -283,8 +287,8 @@ class YahooUSProvider:
     ) -> Iterator[pl.DataFrame]:
         """每批最多 20 只产出一帧; 某批全部请求失败时抛 ProviderRequestError, 不发布残缺结果。
 
-        asset_type="index" 只服务核心基准 ETF (价格为成交价, 指数路径不做复权);
-        其他指数代码与 ETF 资产类型空手而归, 由上层回退。
+        asset_type="index" 只服务核心基准 ETF; 指数路径不做复权, 因此返回拆股调整后的
+        连续价格 (不还原原始价), 分红不调整。其他指数代码与 ETF 资产类型空手而归, 由上层回退。
         """
         if asset_type == "index":
             benchmarks = _benchmarks()
@@ -300,7 +304,10 @@ class YahooUSProvider:
             failures: list[str] = []
             rows: list[dict] = []
             for chart in self._charts(batch, start_d, end_d, failures):
-                rows.extend(r for r in raw_daily_rows(chart) if start_d <= r["date"] <= end_d)
+                rows.extend(
+                    r for r in raw_daily_rows(chart, restore_raw=asset_type != "index")
+                    if start_d <= r["date"] <= end_d
+                )
             if failures and len(failures) == len(batch):
                 raise ProviderRequestError(f"Yahoo 日K整批请求失败: {failures[:5]}")
             rows = drop_unsettled_today(rows, self._clock())

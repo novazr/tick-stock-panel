@@ -79,6 +79,44 @@ def _refresh_single_view(repo: KlineRepository, name: str) -> None:
     repo.refresh_view(name, path)
 
 
+def _earliest_index_date(repo: KlineRepository) -> date | None:
+    """本地指数日K分区的最早日期 (读分区目录名, 不依赖视图是否已注册)。"""
+    index_dir = repo.store.data_dir / "kline_index_daily"
+    if not index_dir.exists():
+        return None
+    days = sorted(d.name[5:] for d in index_dir.glob("date=*") if d.is_dir())
+    for day in days:
+        try:
+            return date.fromisoformat(day)
+        except ValueError:
+            continue
+    return None
+
+
+def extend_benchmark_history(repo: KlineRepository, capset: CapabilitySet, new_start: date) -> int:
+    """美股实例: 把基准 ETF (SPY/QQQ/DIA/IWM) 的日K向前补到 new_start, 返回写入行数。
+
+    基准 ETF 存放在指数存储里, 不在个股标的池中, 个股的向前扩展覆盖不到它们。
+    窗口右端取指数自己的最早日期 (与个股最早日期无关): 个股已经扩展过的实例,
+    再次扩展时基准也能一次补齐。A 股实例不做任何事, 行为与改造前一致。
+    """
+    from app.market import active_market
+
+    if active_market() != "us":
+        return 0
+    earliest_index = _earliest_index_date(repo)
+    if earliest_index is None or new_start >= earliest_index:
+        return 0
+    from app.services import index_sync
+
+    logger.info("extend_history: benchmark index daily [%s ~ %s]", new_start, earliest_index)
+    return index_sync.sync_and_persist_index_daily(
+        repo, capset,
+        start_date=datetime.combine(new_start, datetime.min.time()),
+        end_date=datetime.combine(earliest_index, datetime.min.time()),
+    )
+
+
 def compute_offset(value: int, unit: str) -> timedelta:
     """将用户输入的 value + unit 转成 timedelta。"""
     if unit == "day":
@@ -150,6 +188,20 @@ def run_extend_history(
     _refresh_single_view(repo, "kline_daily")
     _invalidate("daily")
 
+    # 3b. 美股实例: 基准 ETF 走指数存储, 单独向前补 (失败不影响个股结果, 但如实上报)
+    written_index = 0
+    index_error: str | None = None
+    try:
+        written_index = extend_benchmark_history(repo, capset, new_start)
+    except Exception as e:  # noqa: BLE001 — 基准补数失败不应回滚已落盘的个股日K
+        index_error = str(e)
+        logger.exception("extend_history: benchmark index daily failed")
+        emit("extend_history", 46, f"基准指数日K补充失败: {index_error}")
+    if written_index:
+        emit("extend_history", 46, f"基准指数日K完成,写入 {written_index} 行")
+        _invalidate("index_daily")
+        _invalidate("index_enriched")
+
     # 4. 拉除权因子 (新范围)
     written_adj = 0
     adj_start = datetime.combine(new_start, datetime.min.time())
@@ -212,6 +264,8 @@ def run_extend_history(
         "earliest_before": earliest.isoformat(),
         "earliest_after": new_start.isoformat(),
         "daily_rows": written_daily,
+        "index_rows": written_index,
+        "index_error": index_error,
         "daily_days": daily_days,
         "adj_factor_rows": written_adj,
         "enriched_days": enriched_days,
