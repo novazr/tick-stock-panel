@@ -99,6 +99,8 @@ export function FinancialPlot(props: Props) {
         minBarSpacing: propsRef.current.intraday ? 0.01 : 0.5,
         tickMarkFormatter: (time: Time, kind: number) => {
           const key = timeKey(time)
+          // 日线铺满全部数据 (多年跨度) 时, 年份刻度显示年份, 否则满轴都是重复的月-日
+          if (kind === 0 && !propsRef.current.intraday && propsRef.current.visibleBars === 'all') return key.slice(0, 4)
           return typeof time === 'number' && kind >= 3 ? intradayTimeLabel(time).slice(11) : key.slice(5, 10)
         } },
       localization: { locale: 'zh-CN', timeFormatter: (time: Time) => propsRef.current.intraday ? intradayTimeLabel(time) : timeKey(time) },
@@ -188,7 +190,7 @@ export function FinancialPlot(props: Props) {
       rightPriceScale: { ...(intraday ? { autoScale: true } : {}), entireTextOnly: intraday,
         scaleMargins: intraday ? PRICE_MARGINS.intraday : PRICE_MARGINS.daily },
       timeScale: { timeVisible: intraday, fixRightEdge: !intraday && !props.rightOffsetPixels, rightOffset: 0,
-        minBarSpacing: intraday ? 0.01 : 0.5, lockVisibleTimeRangeOnResize: props.visibleBars === 'all' },
+        minBarSpacing: intraday || props.visibleBars === 'all' ? 0.01 : 0.5, lockVisibleTimeRangeOnResize: props.visibleBars === 'all' },
     })
   }, [props.intraday, props.visibleBars])
 
