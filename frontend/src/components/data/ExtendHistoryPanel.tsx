@@ -5,6 +5,9 @@ import { api } from '@/lib/api'
 import { QK } from '@/lib/queryKeys'
 import { MissingCapChip } from '@/lib/capability-labels'
 
+/** 单次最多向前扩展的年数: 覆盖美股长周期回测 (如 QQQ 1999 年上市至今) */
+const MAX_YEARS = 30
+
 // hasCap: 日K批量能力当前是否可用 (路由矩阵判定, 生效源含插件/自定义源)
 export function ExtendHistoryPanel({ hasCap, isRunning, earliestDate, onStart }: {
   hasCap: boolean
@@ -49,7 +52,7 @@ export function ExtendHistoryPanel({ hasCap, isRunning, earliestDate, onStart }:
             {value}
           </div>
           <button
-            onClick={() => setValue(Math.min(unit === 'year' ? 10 : 36, value + 1))}
+            onClick={() => setValue(Math.min(unit === 'year' ? MAX_YEARS : 36, value + 1))}
             disabled={!hasBatchCap || isRunning}
             className="h-6 w-6 flex items-center justify-center rounded-r-btn bg-elevated border border-border text-secondary hover:bg-border/50 disabled:opacity-30 transition-colors text-xs"
           >+</button>
@@ -59,7 +62,7 @@ export function ExtendHistoryPanel({ hasCap, isRunning, earliestDate, onStart }:
           {(['month', 'year'] as const).map(u => (
             <button
               key={u}
-              onClick={() => { setUnit(u); if (u === 'year' && value > 10) setValue(1); if (u === 'month' && value > 36) setValue(6) }}
+              onClick={() => { setUnit(u); if (u === 'year' && value > MAX_YEARS) setValue(1); if (u === 'month' && value > 36) setValue(6) }}
               className={`px-2 py-0.5 text-[10px] font-medium transition-colors ${
                 unit === u ? 'bg-accent/15 text-accent' : 'text-secondary hover:bg-elevated'
               }`}
