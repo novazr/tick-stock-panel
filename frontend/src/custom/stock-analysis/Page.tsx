@@ -177,7 +177,7 @@ export function StockAnalysis() {
 
 // ===== 分析看板:日 K + 关键价位 =====
 function StockAnalysisBoard({ symbol }: { symbol: string }) {
-  /** 日 K 时间范围; 「1年」沿用原滚动窗口, 更长档位按起止日期请求 */
+  /** 日 K 时间范围; 「1年」为最近 365 个自然日的滚动窗口, 更长档位按起止日期请求 */
   const [range, setRange] = useState<AnalysisRangeKey>('1y')
   const dateRange = analysisDateRange(range, cnToday())
   const kline = useQuery({
@@ -186,7 +186,7 @@ function StockAnalysisBoard({ symbol }: { symbol: string }) {
     // 键永远修补不到; 注意合并依赖 _focusSymbol (预览弹窗设置焦点), 看板单独
     // 打开时仍靠 60s staleTime 重拉, 与其他日K入口的键 (带真实日期) 不共享。
     queryKey: QK.kline(symbol, dateRange?.start ?? '', dateRange?.end ?? ''),
-    queryFn: () => api.klineDaily(symbol, 250, dateRange ?? undefined),
+    queryFn: () => api.klineDaily(symbol, 365, dateRange ?? undefined),
     enabled: !!symbol,
     staleTime: 60_000,
     placeholderData: (prev: any, prevQuery: any) =>
