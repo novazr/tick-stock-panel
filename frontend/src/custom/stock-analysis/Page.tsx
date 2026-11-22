@@ -11,6 +11,8 @@ import { PriceAlertDialog } from '@/components/stock-analysis/PriceAlertDialog'
 import { api } from '@/lib/api'
 import { useLastStock } from '@/lib/useLastStock'
 import { QK } from '@/lib/queryKeys'
+import { cnToday } from '@/lib/kline'
+import { ANALYSIS_RANGES, analysisDateRange, type AnalysisRangeKey } from './range'
 import { toast } from '@/components/Toast'
 import {
   startAnalysis, findTodayReport, useHistoryReports,
@@ -175,13 +177,16 @@ export function StockAnalysis() {
 
 // ===== 分析看板:日 K + 关键价位 =====
 function StockAnalysisBoard({ symbol }: { symbol: string }) {
+  /** 日 K 时间范围; 「1年」沿用原滚动窗口, 更长档位按起止日期请求 */
+  const [range, setRange] = useState<AnalysisRangeKey>('1y')
+  const dateRange = analysisDateRange(range, cnToday())
   const kline = useQuery({
     // QK 集中键 (start/end 空串 = 滚动最近窗口, 无日期边界)。收益: 键进集中
     // 管理, 且 useQuoteStream 的焦点股增量合并对无边界键生效 — 此前私拼 3 元
     // 键永远修补不到; 注意合并依赖 _focusSymbol (预览弹窗设置焦点), 看板单独
     // 打开时仍靠 60s staleTime 重拉, 与其他日K入口的键 (带真实日期) 不共享。
-    queryKey: QK.kline(symbol, '', ''),
-    queryFn: () => api.klineDaily(symbol, 250),
+    queryKey: QK.kline(symbol, dateRange?.start ?? '', dateRange?.end ?? ''),
+    queryFn: () => api.klineDaily(symbol, 250, dateRange ?? undefined),
     enabled: !!symbol,
     staleTime: 60_000,
     placeholderData: (prev: any, prevQuery: any) =>
@@ -229,6 +234,20 @@ function StockAnalysisBoard({ symbol }: { symbol: string }) {
           <div className="flex items-center gap-2 min-w-0">
             <LineChart className="h-4 w-4 text-sky-400 shrink-0" />
             <span className="text-sm font-medium text-foreground">关键价位分析</span>
+            <div className="ml-2 flex overflow-hidden rounded-btn border border-border" role="group" aria-label="日K时间范围">
+              {ANALYSIS_RANGES.map(item => (
+                <button
+                  key={item.key}
+                  type="button"
+                  aria-pressed={range === item.key}
+                  onClick={() => setRange(item.key)}
+                  className={`px-2 py-0.5 text-xs font-medium transition-colors ${
+                    range === item.key ? 'bg-accent/15 text-accent' : 'text-secondary hover:bg-elevated'
+                  }`}
+                >{item.label}</button>
+              ))}
+            </div>
+            {kline.isFetching && <Loader2 className="h-3.5 w-3.5 animate-spin text-muted" />}
           </div>
           <div className="flex items-baseline gap-2 shrink-0">
             <span className="text-[10px] text-muted">{rows.length} 个交易日</span>
@@ -248,6 +267,7 @@ function StockAnalysisBoard({ symbol }: { symbol: string }) {
           seriesDates={levelsQ.data?.dates}
           defaultLevelTypes={['sr', 'pivot', 'keltner_s']}
           scopeKey={symbol}
+          visibleBars={range === '1y' ? undefined : 'all'}
           height={480}
         />
       </div>
